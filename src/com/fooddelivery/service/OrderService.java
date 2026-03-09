@@ -57,12 +57,29 @@ public class OrderService implements OrderOperations {
                 .collect(Collectors.toList());
     }
 
+
+    public synchronized boolean markOrderAsDelivered(String username, String orderId) {
+        Optional<Order> orderOpt = findOrderById(username, orderId);
+        if (orderOpt.isEmpty()) {
+            return false;
+        }
+
+        Order order = orderOpt.get();
+        if (order.getStatus() != OrderStatus.AWAITING_CUSTOMER_VERIFICATION) {
+            return false;
+        }
+
+        order.setStatus(OrderStatus.DELIVERED);
+        persistOrders();
+        return true;
+    }
+
     private void startDeliverySimulation(Order order) {
         Thread deliveryThread = new Thread(() -> {
             try {
                 updateStatusAfterDelay(order, OrderStatus.PREPARING, 2000);
                 updateStatusAfterDelay(order, OrderStatus.OUT_FOR_DELIVERY, 2000);
-                updateStatusAfterDelay(order, OrderStatus.DELIVERED, 2000);
+                updateStatusAfterDelay(order, OrderStatus.AWAITING_CUSTOMER_VERIFICATION, 2000);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
