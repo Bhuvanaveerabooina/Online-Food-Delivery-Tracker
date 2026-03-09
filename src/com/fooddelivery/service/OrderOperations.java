@@ -14,4 +14,6 @@ public interface OrderOperations {
     Optional<Order> findOrderById(String username, String orderId);
 
     List<Order> getOrderHistory(String username);
+
+    boolean markOrderAsDelivered(String username, String orderId);
 }

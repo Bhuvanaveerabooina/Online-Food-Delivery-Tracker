@@ -47,6 +47,7 @@ public class OnlineFoodDeliveryTracker {
         server.createContext("/api/place-order", new JsonPostHandler(this::handlePlaceOrder));
         server.createContext("/api/status", this::handleStatus);
         server.createContext("/api/orders", this::handleOrders);
+        server.createContext("/api/confirm-delivery", new JsonPostHandler(this::handleConfirmDelivery));
 
         server.setExecutor(null);
         server.start();
@@ -140,6 +141,40 @@ public class OnlineFoodDeliveryTracker {
         }
 
         writeJson(exchange, 200, "{\"orderId\":\"" + order.get().getOrderId() + "\",\"status\":\"" + order.get().getStatus() + "\"}");
+    }
+
+
+    private void handleConfirmDelivery(HttpExchange exchange, Map<String, String> payload) throws IOException {
+        String username = getLoggedInUser(exchange);
+        if (username == null) {
+            writeJson(exchange, 401, jsonMessage("Please login first."));
+            return;
+        }
+
+        String orderId = payload.getOrDefault("orderId", "").trim();
+        if (orderId.isEmpty()) {
+            writeJson(exchange, 400, jsonMessage("orderId is required."));
+            return;
+        }
+
+        Optional<Order> order = orderService.findOrderById(username, orderId);
+        if (order.isEmpty()) {
+            writeJson(exchange, 404, jsonMessage("Order not found."));
+            return;
+        }
+
+        if (order.get().getStatus() != com.fooddelivery.model.OrderStatus.AWAITING_CUSTOMER_VERIFICATION) {
+            writeJson(exchange, 400, jsonMessage("Order is not ready for customer verification."));
+            return;
+        }
+
+        boolean updated = orderService.markOrderAsDelivered(username, orderId);
+        if (!updated) {
+            writeJson(exchange, 400, jsonMessage("Order could not be marked as delivered."));
+            return;
+        }
+
+        writeJson(exchange, 200, jsonMessage("Order marked as delivered."));
     }
 
     private void handleOrders(HttpExchange exchange) throws IOException {
@@ -361,6 +396,7 @@ public class OnlineFoodDeliveryTracker {
                         <h3>Check Status</h3>
                         <input id="trackId" placeholder="Order ID" />
                         <button onclick="checkStatus()">Check</button>
+                        <button onclick="confirmDelivery()">Mark Delivered (Customer Verification)</button>
                         <div id="statusMsg"></div>
                     </div>
 
@@ -392,6 +428,17 @@ public class OnlineFoodDeliveryTracker {
                             const res = await fetch('/api/status?id=' + encodeURIComponent(id));
                             const data = await res.json();
                             document.getElementById('statusMsg').innerText = data.status ? (data.orderId + ': ' + data.status) : data.message;
+                        }
+                        async function confirmDelivery() {
+                            const id = document.getElementById('trackId').value;
+                            const res = await fetch('/api/confirm-delivery', {
+                                method:'POST',
+                                headers:{'Content-Type':'application/json'},
+                                body: JSON.stringify({ orderId: id })
+                            });
+                            const data = await res.json();
+                            document.getElementById('statusMsg').innerText = data.message || 'Updated';
+                            loadOrders();
                         }
                         async function loadOrders() {
                             const res = await fetch('/api/orders');
