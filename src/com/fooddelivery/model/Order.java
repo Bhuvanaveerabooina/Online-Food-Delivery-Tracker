@@ -1,11 +1,15 @@
 package com.fooddelivery.model;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
  * Data class representing one food order.
  */
-public class Order {
+public class Order implements Serializable {
+    // Recommended for Serializable classes so future changes stay controlled.
+    private static final long serialVersionUID = 1L;
+
     private final String orderId;
     private final String customerName;
     private final String itemName;

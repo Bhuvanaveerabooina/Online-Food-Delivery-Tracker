@@ -15,6 +15,7 @@ Online-Food-Delivery-Tracker/
 │           │   ├── Order.java
 │           │   └── OrderStatus.java
 │           ├── service/
+│           │   ├── OrderFileStore.java
 │           │   ├── OrderOperations.java
 │           │   └── OrderService.java
 │           └── util/
@@ -34,18 +35,20 @@ Online-Food-Delivery-Tracker/
 - Java 8 Streams (search/filter/order history)
 - Basic Threading (automatic status progression)
 - Java Swing (`JFrame`, `JButton`, `JTextField`, `JTextArea`, `JOptionPane`)
+- File handling with Java serialization (`ObjectOutputStream` / `ObjectInputStream`)
 
 ## Features
 
 1. **Place Order**
    - Enter customer name, food item, and quantity
    - Generates a unique order ID
-   - Saves order in memory
+   - Saves order in memory and local file
 2. **Delivery Status**
    - Enter order ID and check current status
 3. **Order History**
    - Shows all previously placed orders
    - Displays total and delivered order count
+   - Reads from saved data loaded at startup
 4. **Exit**
    - Closes the desktop application
 
@@ -55,15 +58,21 @@ Online-Food-Delivery-Tracker/
   - Main Swing window and button actions.
 - **Order** (`model`)
   - Represents one order object (ID, customer, item, quantity, status, time).
+  - Implements `Serializable` so orders can be stored in a local file.
 - **OrderStatus** (`model`)
   - Enum containing: `PLACED`, `PREPARING`, `OUT_FOR_DELIVERY`, `DELIVERED`.
 - **OrderOperations** (`service`)
   - Interface defining core order operations.
 - **OrderService** (`service`)
   - Implements business logic and order storage using `ArrayList`.
+  - Loads existing orders when app starts.
+  - Saves orders whenever a new order is placed or status changes.
   - Uses a background thread to simulate delivery status updates.
+- **OrderFileStore** (`service`)
+  - Handles reading/writing order history in `orders-data.ser`.
 - **OrderIdGenerator** (`util`)
   - Utility class that generates unique IDs like `ORD1000`, `ORD1001`.
+  - Syncs counter from loaded orders to avoid duplicate IDs.
 
 ## How to Compile and Run
 
@@ -77,6 +86,7 @@ java -cp out com.fooddelivery.app.OnlineFoodDeliveryTracker
 
 ## Notes
 
-- In-memory storage is used (`ArrayList`), so data resets when app closes.
-- Backend/business logic is preserved and reused by the Swing UI.
+- Orders are now saved in `orders-data.ser` in the app's working folder.
+- On restart, saved orders are automatically loaded into the app.
+- GUI flow and existing features are preserved.
 - Code is intentionally simple and readable for student-level understanding.
