@@ -1,82 +1,53 @@
-# Online Food Delivery Tracker (Java Swing Desktop App)
+# Online Food Delivery Tracker (Java Real-Time Web App)
 
-A beginner-friendly **GUI desktop application** to manage online food delivery orders.
+A beginner-friendly **real-time web application** to manage online food delivery orders with **login** and **persistent order history**.
+
+## Features
+
+1. **User Login & Registration**
+   - Create account and login from browser
+   - Users are stored on disk and available after app restart
+2. **Place Order**
+   - Enter customer name, food item, and quantity
+   - Generates a unique order ID
+3. **Real-Time Tracking**
+   - Background status progression: `PLACED → PREPARING → OUT_FOR_DELIVERY → DELIVERED`
+   - Browser history table auto-refreshes every 2 seconds
+4. **Order History Persistence**
+   - Orders are saved to local files and loaded at startup
+   - History remains available even after closing the app
+
+## Tech Used
+
+- Java (`com.sun.net.httpserver.HttpServer`) for backend
+- Simple HTML/CSS/JavaScript frontend (served by Java)
+- OOP + service layer design
+- Java Serialization for persistent storage
+- Basic multithreading for status simulation
 
 ## Project Structure
 
 ```text
-Online-Food-Delivery-Tracker/
-├── src/
-│   └── com/
-│       └── fooddelivery/
-│           ├── app/
-│           │   └── OnlineFoodDeliveryTracker.java
-│           ├── model/
-│           │   ├── Order.java
-│           │   └── OrderStatus.java
-│           ├── service/
-│           │   ├── OrderFileStore.java
-│           │   ├── OrderOperations.java
-│           │   └── OrderService.java
-│           └── util/
-│               └── OrderIdGenerator.java
-└── README.md
+src/com/fooddelivery/
+├── app/
+│   └── OnlineFoodDeliveryTracker.java
+├── model/
+│   ├── Order.java
+│   ├── OrderStatus.java
+│   └── UserAccount.java
+├── service/
+│   ├── AuthService.java
+│   ├── OrderFileStore.java
+│   ├── OrderOperations.java
+│   ├── OrderService.java
+│   └── UserFileStore.java
+└── util/
+    └── OrderIdGenerator.java
 ```
-
-## Concepts Used
-
-- OOP (classes/objects)
-- Encapsulation (private fields with getters/setters)
-- Abstraction (service interface)
-- Interface-based design (`OrderOperations`)
-- Collections (`ArrayList`)
-- Exception handling (input validation)
-- Enums (`OrderStatus`)
-- Java 8 Streams (search/filter/order history)
-- Basic Threading (automatic status progression)
-- Java Swing (`JFrame`, `JButton`, `JTextField`, `JTextArea`, `JOptionPane`)
-- File handling with Java serialization (`ObjectOutputStream` / `ObjectInputStream`)
-
-## Features
-
-1. **Place Order**
-   - Enter customer name, food item, and quantity
-   - Generates a unique order ID
-   - Saves order in memory and local file
-2. **Delivery Status**
-   - Enter order ID and check current status
-3. **Order History**
-   - Shows all previously placed orders
-   - Displays total and delivered order count
-   - Reads from saved data loaded at startup
-4. **Exit**
-   - Closes the desktop application
-
-## Brief Explanation of Each Class
-
-- **OnlineFoodDeliveryTracker** (`app`)
-  - Main Swing window and button actions.
-- **Order** (`model`)
-  - Represents one order object (ID, customer, item, quantity, status, time).
-  - Implements `Serializable` so orders can be stored in a local file.
-- **OrderStatus** (`model`)
-  - Enum containing: `PLACED`, `PREPARING`, `OUT_FOR_DELIVERY`, `DELIVERED`.
-- **OrderOperations** (`service`)
-  - Interface defining core order operations.
-- **OrderService** (`service`)
-  - Implements business logic and order storage using `ArrayList`.
-  - Loads existing orders when app starts.
-  - Saves orders whenever a new order is placed or status changes.
-  - Uses a background thread to simulate delivery status updates.
-- **OrderFileStore** (`service`)
-  - Handles reading/writing order history in `orders-data.ser`.
-- **OrderIdGenerator** (`util`)
-  - Utility class that generates unique IDs like `ORD1000`, `ORD1001`.
-  - Syncs counter from loaded orders to avoid duplicate IDs.
 
 ## How to Compile and Run
 
-From the project root:
+From project root:
 
 ```bash
 mkdir -p out
@@ -84,9 +55,13 @@ javac -d out $(find src -name "*.java")
 java -cp out com.fooddelivery.app.OnlineFoodDeliveryTracker
 ```
 
-## Notes
+Then open:
 
-- Orders are now saved in `orders-data.ser` in the app's working folder.
-- On restart, saved orders are automatically loaded into the app.
-- GUI flow and existing features are preserved.
-- Code is intentionally simple and readable for student-level understanding.
+- `http://localhost:8080`
+
+## Data Files
+
+Stored in your home directory:
+
+- `~/.online-food-delivery-tracker/orders-data.ser`
+- `~/.online-food-delivery-tracker/users-data.ser`
