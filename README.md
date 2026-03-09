@@ -1,6 +1,6 @@
-# Online Food Delivery Tracker (Core Java Console App)
+# Online Food Delivery Tracker (Java Swing Desktop App)
 
-A beginner-friendly **menu-driven console application** to manage online food delivery orders.
+A beginner-friendly **GUI desktop application** to manage online food delivery orders.
 
 ## Project Structure
 
@@ -29,27 +29,30 @@ Online-Food-Delivery-Tracker/
 - Abstraction (service interface)
 - Interface-based design (`OrderOperations`)
 - Collections (`ArrayList`)
-- Exception handling (`try-catch`, input validation)
+- Exception handling (input validation)
 - Enums (`OrderStatus`)
 - Java 8 Streams (search/filter/order history)
 - Basic Threading (automatic status progression)
+- Java Swing (`JFrame`, `JButton`, `JTextField`, `JTextArea`, `JOptionPane`)
 
-## Module Mapping
+## Features
 
 1. **Place Order**
-   - Takes customer name, item name, quantity
+   - Enter customer name, food item, and quantity
    - Generates a unique order ID
    - Saves order in memory
 2. **Delivery Status**
-   - Finds an order by ID and shows current status
+   - Enter order ID and check current status
 3. **Order History**
    - Shows all previously placed orders
    - Displays total and delivered order count
+4. **Exit**
+   - Closes the desktop application
 
 ## Brief Explanation of Each Class
 
 - **OnlineFoodDeliveryTracker** (`app`)
-  - Main class with menu loop and user interaction.
+  - Main Swing window and button actions.
 - **Order** (`model`)
   - Represents one order object (ID, customer, item, quantity, status, time).
 - **OrderStatus** (`model`)
@@ -62,7 +65,7 @@ Online-Food-Delivery-Tracker/
 - **OrderIdGenerator** (`util`)
   - Utility class that generates unique IDs like `ORD1000`, `ORD1001`.
 
-## How to Compile and Run (Terminal)
+## How to Compile and Run
 
 From the project root:
 
@@ -72,7 +75,8 @@ javac -d out $(find src -name "*.java")
 java -cp out com.fooddelivery.app.OnlineFoodDeliveryTracker
 ```
 
-## Notes for Mini Project
+## Notes
 
 - In-memory storage is used (`ArrayList`), so data resets when app closes.
+- Backend/business logic is preserved and reused by the Swing UI.
 - Code is intentionally simple and readable for student-level understanding.
