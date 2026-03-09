@@ -7,6 +7,9 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -16,15 +19,19 @@ import java.util.List;
  * Uses Java serialization to keep implementation simple for beginners.
  */
 public class OrderFileStore {
-    // File created in project/app working directory.
-    private static final String ORDERS_FILE = "orders-data.ser";
+    // Save under user home so data persists regardless of app run location.
+    private static final Path STORAGE_DIRECTORY = Paths.get(System.getProperty("user.home"), ".online-food-delivery-tracker");
+    private static final Path ORDERS_FILE = STORAGE_DIRECTORY.resolve("orders-data.ser");
 
     /**
      * Saves complete order list to disk.
      */
     public void saveOrders(List<Order> orders) {
-        try (ObjectOutputStream outputStream = new ObjectOutputStream(new FileOutputStream(ORDERS_FILE))) {
-            outputStream.writeObject(orders);
+        try {
+            Files.createDirectories(STORAGE_DIRECTORY);
+            try (ObjectOutputStream outputStream = new ObjectOutputStream(new FileOutputStream(ORDERS_FILE.toFile()))) {
+                outputStream.writeObject(orders);
+            }
         } catch (IOException e) {
             // Keep app usable even if file save fails.
             System.out.println("Could not save orders: " + e.getMessage());
@@ -36,14 +43,18 @@ public class OrderFileStore {
      */
     @SuppressWarnings("unchecked")
     public List<Order> loadOrders() {
-        try (ObjectInputStream inputStream = new ObjectInputStream(new FileInputStream(ORDERS_FILE))) {
+        if (!Files.exists(ORDERS_FILE)) {
+            return new ArrayList<>();
+        }
+
+        try (ObjectInputStream inputStream = new ObjectInputStream(new FileInputStream(ORDERS_FILE.toFile()))) {
             Object data = inputStream.readObject();
 
             if (data instanceof List<?>) {
                 return (List<Order>) data;
             }
         } catch (IOException | ClassNotFoundException e) {
-            // First run or unreadable file: silently start with empty list.
+            // Unreadable file: silently start with empty list.
         }
 
         return new ArrayList<>();

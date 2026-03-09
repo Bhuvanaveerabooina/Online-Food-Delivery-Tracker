@@ -61,17 +61,9 @@ public class OrderService implements OrderOperations {
     private void startDeliverySimulation(Order order) {
         Thread deliveryThread = new Thread(() -> {
             try {
-                Thread.sleep(2000);
-                order.setStatus(OrderStatus.PREPARING);
-                persistOrders();
-
-                Thread.sleep(2000);
-                order.setStatus(OrderStatus.OUT_FOR_DELIVERY);
-                persistOrders();
-
-                Thread.sleep(2000);
-                order.setStatus(OrderStatus.DELIVERED);
-                persistOrders();
+                updateStatusAfterDelay(order, OrderStatus.PREPARING, 2000);
+                updateStatusAfterDelay(order, OrderStatus.OUT_FOR_DELIVERY, 2000);
+                updateStatusAfterDelay(order, OrderStatus.DELIVERED, 2000);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 System.out.println("Delivery status simulation interrupted for order " + order.getOrderId());
@@ -80,6 +72,15 @@ public class OrderService implements OrderOperations {
 
         deliveryThread.setDaemon(true);
         deliveryThread.start();
+    }
+
+    private void updateStatusAfterDelay(Order order, OrderStatus status, long delayMs) throws InterruptedException {
+        Thread.sleep(delayMs);
+
+        synchronized (this) {
+            order.setStatus(status);
+            persistOrders();
+        }
     }
 
     /**
