@@ -344,7 +344,7 @@ public class OnlineFoodDeliveryTracker {
                 </head>
                 <body>
                     <div class="top">
-                        <h2>Welcome, %s</h2>
+                        <h2>Welcome, __USERNAME__</h2>
                         <form method="post" action="/api/logout"><button>Logout</button></form>
                     </div>
 
@@ -408,6 +408,6 @@ public class OnlineFoodDeliveryTracker {
                     </script>
                 </body>
                 </html>
-                """.formatted(username);
+                """.replace("__USERNAME__", escape(username));
     }
 }
