@@ -9,9 +9,9 @@ import java.util.Optional;
  * Abstraction for order operations.
  */
 public interface OrderOperations {
-    Order placeOrder(String customerName, String itemName, int quantity);
+    Order placeOrder(String username, String customerName, String itemName, int quantity);
 
-    Optional<Order> findOrderById(String orderId);
+    Optional<Order> findOrderById(String username, String orderId);
 
-    List<Order> getOrderHistory();
+    List<Order> getOrderHistory(String username);
 }

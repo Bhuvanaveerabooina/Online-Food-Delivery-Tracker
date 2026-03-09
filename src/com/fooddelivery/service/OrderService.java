@@ -18,42 +18,41 @@ public class OrderService implements OrderOperations {
     private final OrderFileStore orderFileStore = new OrderFileStore();
 
     public OrderService() {
-        // Load existing order history from local file when app starts.
         List<Order> savedOrders = orderFileStore.loadOrders();
         orders.addAll(savedOrders);
 
-        // Sync generator so new IDs do not clash with loaded IDs.
         for (Order savedOrder : savedOrders) {
             OrderIdGenerator.syncCounterFromExistingId(savedOrder.getOrderId());
         }
     }
 
     @Override
-    public synchronized Order placeOrder(String customerName, String itemName, int quantity) {
+    public synchronized Order placeOrder(String username, String customerName, String itemName, int quantity) {
         if (quantity <= 0) {
             throw new IllegalArgumentException("Quantity must be greater than 0.");
         }
 
-        Order order = new Order(OrderIdGenerator.generateOrderId(), customerName, itemName, quantity);
+        Order order = new Order(OrderIdGenerator.generateOrderId(), username, customerName, itemName, quantity);
         orders.add(order);
-
-        // Save immediately so data remains after closing the app.
         persistOrders();
-
         startDeliverySimulation(order);
         return order;
     }
 
     @Override
-    public synchronized Optional<Order> findOrderById(String orderId) {
+    public synchronized Optional<Order> findOrderById(String username, String orderId) {
         return orders.stream()
+                .filter(order -> order.getPlacedByUsername() != null)
+                .filter(order -> order.getPlacedByUsername().equalsIgnoreCase(username))
                 .filter(order -> order.getOrderId().equalsIgnoreCase(orderId))
                 .findFirst();
     }
 
     @Override
-    public synchronized List<Order> getOrderHistory() {
+    public synchronized List<Order> getOrderHistory(String username) {
         return orders.stream()
+                .filter(order -> order.getPlacedByUsername() != null)
+                .filter(order -> order.getPlacedByUsername().equalsIgnoreCase(username))
                 .sorted(Comparator.comparing(Order::getOrderTime).reversed())
                 .collect(Collectors.toList());
     }
@@ -66,7 +65,6 @@ public class OrderService implements OrderOperations {
                 updateStatusAfterDelay(order, OrderStatus.DELIVERED, 2000);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                System.out.println("Delivery status simulation interrupted for order " + order.getOrderId());
             }
         });
 
@@ -83,9 +81,6 @@ public class OrderService implements OrderOperations {
         }
     }
 
-    /**
-     * Small helper to keep save logic in one place.
-     */
     private synchronized void persistOrders() {
         orderFileStore.saveOrders(orders);
     }

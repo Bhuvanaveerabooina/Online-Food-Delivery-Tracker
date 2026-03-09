@@ -1,302 +1,413 @@
 package com.fooddelivery.app;
 
 import com.fooddelivery.model.Order;
-import com.fooddelivery.model.OrderStatus;
+import com.fooddelivery.service.AuthService;
 import com.fooddelivery.service.OrderService;
+import com.sun.net.httpserver.Headers;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
+import com.sun.net.httpserver.HttpServer;
 
-import javax.swing.BorderFactory;
-import javax.swing.Box;
-import javax.swing.BoxLayout;
-import javax.swing.JButton;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JTabbedPane;
-import javax.swing.JTable;
-import javax.swing.JTextArea;
-import javax.swing.JTextField;
-import javax.swing.SwingUtilities;
-import javax.swing.Timer;
-import javax.swing.table.DefaultTableModel;
-import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.FlowLayout;
-import java.awt.Font;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Main class for the Swing-based Online Food Delivery Tracker app.
+ * Starts a web application for real-time order tracking with login.
  */
-public class OnlineFoodDeliveryTracker extends JFrame {
+public class OnlineFoodDeliveryTracker {
+    private static final int PORT = 8080;
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm:ss");
 
     private final OrderService orderService = new OrderService();
+    private final AuthService authService = new AuthService();
+    private final Map<String, String> sessions = new ConcurrentHashMap<>();
 
-    // Place Order module fields.
-    private final JTextField customerNameField = new JTextField(18);
-    private final JTextField itemNameField = new JTextField(18);
-    private final JTextField quantityField = new JTextField(6);
+    public static void main(String[] args) throws IOException {
+        new OnlineFoodDeliveryTracker().start();
+    }
 
-    // Delivery Status module fields.
-    private final JTextField orderIdField = new JTextField(12);
-    private final JLabel liveStatusLabel = new JLabel("Enter an Order ID and click Check Status");
-    private final JTextArea statusDetailsArea = new JTextArea(8, 40);
+    private void start() throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress(PORT), 0);
+        server.createContext("/", this::handleRoot);
+        server.createContext("/login", exchange -> serveHtml(exchange, loginPage()));
+        server.createContext("/app", this::handleApp);
+        server.createContext("/api/register", new JsonPostHandler(this::handleRegister));
+        server.createContext("/api/login", new JsonPostHandler(this::handleLogin));
+        server.createContext("/api/logout", this::handleLogout);
+        server.createContext("/api/place-order", new JsonPostHandler(this::handlePlaceOrder));
+        server.createContext("/api/status", this::handleStatus);
+        server.createContext("/api/orders", this::handleOrders);
 
-    // Order History module table.
-    private final DefaultTableModel historyTableModel = new DefaultTableModel(
-            new Object[]{"Order ID", "Customer", "Item", "Qty", "Status", "Order Time"}, 0) {
-        @Override
-        public boolean isCellEditable(int row, int column) {
-            return false;
+        server.setExecutor(null);
+        server.start();
+        System.out.println("Server started on http://localhost:" + PORT);
+    }
+
+    private void handleRoot(HttpExchange exchange) throws IOException {
+        String username = getLoggedInUser(exchange);
+        redirect(exchange, username == null ? "/login" : "/app");
+    }
+
+    private void handleApp(HttpExchange exchange) throws IOException {
+        String username = getLoggedInUser(exchange);
+        if (username == null) {
+            redirect(exchange, "/login");
+            return;
         }
-    };
-    private final JTable historyTable = new JTable(historyTableModel);
-    private final JLabel historySummaryLabel = new JLabel("Total Orders: 0 | Delivered: 0");
-
-    private Timer uiRefreshTimer;
-
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> {
-            OnlineFoodDeliveryTracker tracker = new OnlineFoodDeliveryTracker();
-            tracker.setVisible(true);
-        });
+        serveHtml(exchange, appPage(username));
     }
 
-    public OnlineFoodDeliveryTracker() {
-        setTitle("Online Food Delivery Tracker");
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(980, 620);
-        setLocationRelativeTo(null);
-
-        initializeUi();
-        refreshEntireUi(); // Load history and status immediately at startup.
-        startUiRefreshTimer(); // Keep UI synced with background status simulation.
-    }
-
-    private void initializeUi() {
-        JPanel rootPanel = new JPanel(new BorderLayout(0, 10));
-        rootPanel.setBorder(BorderFactory.createEmptyBorder(10, 12, 10, 12));
-
-        JLabel heading = new JLabel("Online Food Delivery Tracker", JLabel.CENTER);
-        heading.setFont(new Font("Segoe UI", Font.BOLD, 26));
-        heading.setForeground(new Color(32, 70, 133));
-        rootPanel.add(heading, BorderLayout.NORTH);
-
-        JTabbedPane tabbedPane = new JTabbedPane();
-        tabbedPane.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-
-        tabbedPane.addTab("Place Order", createPlaceOrderPanel());
-        tabbedPane.addTab("Delivery Status", createDeliveryStatusPanel());
-        tabbedPane.addTab("Order History", createOrderHistoryPanel());
-
-        rootPanel.add(tabbedPane, BorderLayout.CENTER);
-
-        JPanel footerPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        JButton exitButton = new JButton("Exit");
-        exitButton.addActionListener(e -> dispose());
-        footerPanel.add(exitButton);
-        rootPanel.add(footerPanel, BorderLayout.SOUTH);
-
-        setContentPane(rootPanel);
-    }
-
-    private JPanel createPlaceOrderPanel() {
-        JPanel panel = new JPanel(new BorderLayout(10, 10));
-        panel.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
-
-        JPanel formPanel = new JPanel();
-        formPanel.setLayout(new BoxLayout(formPanel, BoxLayout.Y_AXIS));
-        formPanel.setBorder(BorderFactory.createTitledBorder("New Order Information"));
-
-        formPanel.add(buildFieldRow("Customer Name:", customerNameField));
-        formPanel.add(buildFieldRow("Food Item:", itemNameField));
-        formPanel.add(buildFieldRow("Quantity:", quantityField));
-
-        JButton placeOrderButton = new JButton("Place Order");
-        placeOrderButton.addActionListener(e -> placeOrderFlow());
-
-        JPanel buttonRow = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        buttonRow.add(placeOrderButton);
-        formPanel.add(buttonRow);
-
-        JTextArea helperText = new JTextArea(
-                "Tip: After placing an order, copy or keep the Order ID for tracking.\n"
-                        + "Statuses update automatically from Placed → Preparing → Out for Delivery → Delivered.");
-        helperText.setEditable(false);
-        helperText.setLineWrap(true);
-        helperText.setWrapStyleWord(true);
-        helperText.setBackground(new Color(245, 248, 255));
-        helperText.setBorder(BorderFactory.createTitledBorder("How it works"));
-
-        panel.add(formPanel, BorderLayout.NORTH);
-        panel.add(helperText, BorderLayout.CENTER);
-        return panel;
-    }
-
-    private JPanel createDeliveryStatusPanel() {
-        JPanel panel = new JPanel(new BorderLayout(10, 10));
-        panel.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
-
-        JPanel inputRow = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        inputRow.setBorder(BorderFactory.createTitledBorder("Track an Order"));
-        inputRow.add(new JLabel("Order ID:"));
-        inputRow.add(orderIdField);
-
-        JButton checkStatusButton = new JButton("Check Status");
-        checkStatusButton.addActionListener(e -> trackDeliveryStatusFlow());
-        inputRow.add(checkStatusButton);
-
-        liveStatusLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
-        liveStatusLabel.setBorder(BorderFactory.createEmptyBorder(10, 6, 10, 6));
-
-        statusDetailsArea.setEditable(false);
-        statusDetailsArea.setLineWrap(true);
-        statusDetailsArea.setWrapStyleWord(true);
-        statusDetailsArea.setBorder(BorderFactory.createTitledBorder("Order Details"));
-
-        panel.add(inputRow, BorderLayout.NORTH);
-        panel.add(liveStatusLabel, BorderLayout.CENTER);
-        panel.add(new JScrollPane(statusDetailsArea), BorderLayout.SOUTH);
-
-        return panel;
-    }
-
-    private JPanel createOrderHistoryPanel() {
-        JPanel panel = new JPanel(new BorderLayout(10, 10));
-        panel.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
-
-        historyTable.setRowHeight(24);
-        historyTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
-        historyTable.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-
-        JScrollPane tableScrollPane = new JScrollPane(historyTable);
-        tableScrollPane.setBorder(BorderFactory.createTitledBorder("All Orders (Loaded from Saved File on Startup)"));
-
-        JPanel topBar = new JPanel(new BorderLayout());
-        topBar.add(historySummaryLabel, BorderLayout.WEST);
-
-        JButton refreshButton = new JButton("Refresh Now");
-        refreshButton.addActionListener(e -> refreshEntireUi());
-        topBar.add(refreshButton, BorderLayout.EAST);
-
-        panel.add(topBar, BorderLayout.NORTH);
-        panel.add(tableScrollPane, BorderLayout.CENTER);
-
-        return panel;
-    }
-
-    private JPanel buildFieldRow(String labelText, JTextField field) {
-        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        JLabel label = new JLabel(labelText);
-        label.setPreferredSize(new Dimension(120, 26));
-        row.add(label);
-        row.add(field);
-        row.add(Box.createHorizontalStrut(10));
-        return row;
-    }
-
-    private void placeOrderFlow() {
+    private void handleRegister(HttpExchange exchange, Map<String, String> payload) throws IOException {
         try {
-            String customerName = customerNameField.getText().trim();
-            String itemName = itemNameField.getText().trim();
-            int quantity = Integer.parseInt(quantityField.getText().trim());
-
-            if (customerName.isEmpty() || itemName.isEmpty()) {
-                throw new IllegalArgumentException("Customer name and food item are required.");
-            }
-
-            Order order = orderService.placeOrder(customerName, itemName, quantity);
-            orderIdField.setText(order.getOrderId());
-
-            JOptionPane.showMessageDialog(this,
-                    "Order placed successfully!\nOrder ID: " + order.getOrderId(),
-                    "Order Placed",
-                    JOptionPane.INFORMATION_MESSAGE);
-
-            customerNameField.setText("");
-            itemNameField.setText("");
-            quantityField.setText("");
-
-            refreshEntireUi();
-        } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(this,
-                    "Quantity must be a valid number.",
-                    "Input Error",
-                    JOptionPane.ERROR_MESSAGE);
-        } catch (IllegalArgumentException e) {
-            JOptionPane.showMessageDialog(this,
-                    e.getMessage(),
-                    "Input Error",
-                    JOptionPane.ERROR_MESSAGE);
+            authService.register(payload.get("username"), payload.get("password"));
+            writeJson(exchange, 200, "{\"message\":\"Account created successfully. Please login.\"}");
+        } catch (IllegalArgumentException exception) {
+            writeJson(exchange, 400, jsonMessage(exception.getMessage()));
         }
     }
 
-    private void trackDeliveryStatusFlow() {
-        String orderId = orderIdField.getText().trim();
-        if (orderId.isEmpty()) {
-            liveStatusLabel.setText("Please enter an Order ID.");
-            statusDetailsArea.setText("No order selected.");
+    private void handleLogin(HttpExchange exchange, Map<String, String> payload) throws IOException {
+        String username = payload.getOrDefault("username", "").trim();
+        boolean authenticated = authService.authenticate(username, payload.get("password"));
+        if (!authenticated) {
+            writeJson(exchange, 401, jsonMessage("Invalid username or password."));
             return;
         }
 
-        updateStatusSection(orderId);
+        String token = UUID.randomUUID().toString();
+        sessions.put(token, username);
+        exchange.getResponseHeaders().add("Set-Cookie", "SESSION=" + token + "; Path=/; HttpOnly");
+        writeJson(exchange, 200, "{\"message\":\"Login successful.\"}");
     }
 
-    private void updateStatusSection(String orderId) {
-        Optional<Order> orderOptional = orderService.findOrderById(orderId);
+    private void handleLogout(HttpExchange exchange) throws IOException {
+        String token = readCookie(exchange, "SESSION");
+        if (token != null) {
+            sessions.remove(token);
+        }
+        exchange.getResponseHeaders().add("Set-Cookie", "SESSION=deleted; Path=/; Max-Age=0");
+        redirect(exchange, "/login");
+    }
 
-        if (orderOptional.isPresent()) {
-            Order order = orderOptional.get();
-            liveStatusLabel.setText("Order " + order.getOrderId() + " is currently: " + order.getStatus());
-            statusDetailsArea.setText(
-                    "Customer: " + order.getCustomerName() + "\n"
-                            + "Food Item: " + order.getItemName() + "\n"
-                            + "Quantity: " + order.getQuantity() + "\n"
-                            + "Order Time: " + order.getOrderTime().format(TIME_FORMATTER) + "\n"
-                            + "Status: " + order.getStatus());
-        } else {
-            liveStatusLabel.setText("No order found for ID: " + orderId);
-            statusDetailsArea.setText("Please verify the order ID and try again.");
+    private void handlePlaceOrder(HttpExchange exchange, Map<String, String> payload) throws IOException {
+        String username = getLoggedInUser(exchange);
+        if (username == null) {
+            writeJson(exchange, 401, jsonMessage("Please login first."));
+            return;
+        }
+
+        try {
+            int quantity = Integer.parseInt(payload.getOrDefault("quantity", "0"));
+            Order order = orderService.placeOrder(
+                    username,
+                    payload.getOrDefault("customerName", "").trim(),
+                    payload.getOrDefault("itemName", "").trim(),
+                    quantity
+            );
+            writeJson(exchange, 200, "{\"message\":\"Order placed.\",\"orderId\":\"" + order.getOrderId() + "\"}");
+        } catch (Exception exception) {
+            writeJson(exchange, 400, jsonMessage("Could not place order: " + exception.getMessage()));
         }
     }
 
-    private void refreshEntireUi() {
-        refreshHistoryTable();
+    private void handleStatus(HttpExchange exchange) throws IOException {
+        String username = getLoggedInUser(exchange);
+        if (username == null) {
+            writeJson(exchange, 401, jsonMessage("Please login first."));
+            return;
+        }
 
-        String trackedOrderId = orderIdField.getText().trim();
-        if (!trackedOrderId.isEmpty()) {
-            updateStatusSection(trackedOrderId);
+        String query = exchange.getRequestURI().getQuery();
+        String orderId = "";
+        if (query != null && query.startsWith("id=")) {
+            orderId = query.substring(3);
+        }
+
+        Optional<Order> order = orderService.findOrderById(username, orderId);
+        if (order.isEmpty()) {
+            writeJson(exchange, 404, jsonMessage("Order not found."));
+            return;
+        }
+
+        writeJson(exchange, 200, "{\"orderId\":\"" + order.get().getOrderId() + "\",\"status\":\"" + order.get().getStatus() + "\"}");
+    }
+
+    private void handleOrders(HttpExchange exchange) throws IOException {
+        String username = getLoggedInUser(exchange);
+        if (username == null) {
+            writeJson(exchange, 401, jsonMessage("Please login first."));
+            return;
+        }
+
+        List<Order> orders = orderService.getOrderHistory(username);
+        StringBuilder json = new StringBuilder();
+        json.append("{\"orders\":[");
+        for (int i = 0; i < orders.size(); i++) {
+            Order order = orders.get(i);
+            json.append("{\"orderId\":\"").append(order.getOrderId())
+                    .append("\",\"customerName\":\"").append(escape(order.getCustomerName()))
+                    .append("\",\"itemName\":\"").append(escape(order.getItemName()))
+                    .append("\",\"quantity\":").append(order.getQuantity())
+                    .append(",\"status\":\"").append(order.getStatus())
+                    .append("\",\"orderTime\":\"").append(order.getOrderTime().format(TIME_FORMATTER))
+                    .append("\"}");
+            if (i < orders.size() - 1) {
+                json.append(",");
+            }
+        }
+        json.append("]}");
+        writeJson(exchange, 200, json.toString());
+    }
+
+    private String getLoggedInUser(HttpExchange exchange) {
+        String token = readCookie(exchange, "SESSION");
+        if (token == null) {
+            return null;
+        }
+        return sessions.get(token);
+    }
+
+    private String readCookie(HttpExchange exchange, String name) {
+        Headers headers = exchange.getRequestHeaders();
+        if (!headers.containsKey("Cookie")) {
+            return null;
+        }
+
+        for (String cookie : headers.get("Cookie")) {
+            String[] parts = cookie.split(";");
+            for (String part : parts) {
+                String trimmed = part.trim();
+                if (trimmed.startsWith(name + "=")) {
+                    return trimmed.substring(name.length() + 1);
+                }
+            }
+        }
+        return null;
+    }
+
+    private void serveHtml(HttpExchange exchange, String html) throws IOException {
+        byte[] data = html.getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().add("Content-Type", "text/html; charset=UTF-8");
+        exchange.sendResponseHeaders(200, data.length);
+        try (OutputStream os = exchange.getResponseBody()) {
+            os.write(data);
         }
     }
 
-    private void refreshHistoryTable() {
-        List<Order> orders = orderService.getOrderHistory();
-
-        historyTableModel.setRowCount(0);
-        for (Order order : orders) {
-            historyTableModel.addRow(new Object[]{
-                    order.getOrderId(),
-                    order.getCustomerName(),
-                    order.getItemName(),
-                    order.getQuantity(),
-                    order.getStatus(),
-                    order.getOrderTime().format(TIME_FORMATTER)
-            });
+    private void writeJson(HttpExchange exchange, int statusCode, String json) throws IOException {
+        byte[] data = json.getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().add("Content-Type", "application/json; charset=UTF-8");
+        exchange.sendResponseHeaders(statusCode, data.length);
+        try (OutputStream os = exchange.getResponseBody()) {
+            os.write(data);
         }
-
-        long deliveredCount = orders.stream()
-                .filter(order -> order.getStatus() == OrderStatus.DELIVERED)
-                .count();
-        historySummaryLabel.setText("Total Orders: " + orders.size() + " | Delivered: " + deliveredCount);
     }
 
-    private void startUiRefreshTimer() {
-        uiRefreshTimer = new Timer(1000, e -> refreshEntireUi());
-        uiRefreshTimer.start();
+    private void redirect(HttpExchange exchange, String path) throws IOException {
+        exchange.getResponseHeaders().add("Location", path);
+        exchange.sendResponseHeaders(302, -1);
+        exchange.close();
+    }
+
+    private String escape(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private String jsonMessage(String message) {
+        return "{\"message\":\"" + escape(message) + "\"}";
+    }
+
+    private interface JsonHandler {
+        void handle(HttpExchange exchange, Map<String, String> payload) throws IOException;
+    }
+
+    private static class JsonPostHandler implements HttpHandler {
+        private final JsonHandler handler;
+
+        private JsonPostHandler(JsonHandler handler) {
+            this.handler = handler;
+        }
+
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(405, -1);
+                exchange.close();
+                return;
+            }
+            String body = readBody(exchange.getRequestBody());
+            Map<String, String> payload = parseSimpleJson(body);
+            handler.handle(exchange, payload);
+        }
+
+        private static String readBody(InputStream inputStream) throws IOException {
+            return new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+
+        private static Map<String, String> parseSimpleJson(String json) {
+            Map<String, String> data = new HashMap<>();
+            String trimmed = json.trim();
+            if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) {
+                return data;
+            }
+            String content = trimmed.substring(1, trimmed.length() - 1).trim();
+            if (content.isEmpty()) {
+                return data;
+            }
+            String[] pairs = content.split(",");
+            for (String pair : pairs) {
+                String[] keyValue = pair.split(":", 2);
+                if (keyValue.length != 2) {
+                    continue;
+                }
+                String key = keyValue[0].trim().replaceAll("^\"|\"$", "");
+                String value = keyValue[1].trim().replaceAll("^\"|\"$", "");
+                data.put(key, value);
+            }
+            return data;
+        }
+    }
+
+    private String loginPage() {
+        return """
+                <!doctype html>
+                <html>
+                <head>
+                    <title>Login - Food Delivery Tracker</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; margin: 40px; background: #f4f7ff; }
+                        .card { max-width: 460px; background: white; padding: 24px; margin: auto; border-radius: 8px; }
+                        input, button { width: 100%; padding: 10px; margin-top: 8px; }
+                        .message { color: #204685; margin-top: 10px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="card">
+                        <h2>Food Delivery Tracker Login</h2>
+                        <input id="username" placeholder="Username" />
+                        <input id="password" type="password" placeholder="Password" />
+                        <button onclick="login()">Login</button>
+                        <button onclick="register()">Register</button>
+                        <div id="msg" class="message"></div>
+                    </div>
+                    <script>
+                        async function post(url) {
+                            const res = await fetch(url, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    username: document.getElementById('username').value,
+                                    password: document.getElementById('password').value
+                                })
+                            });
+                            return {status: res.status, body: await res.json()};
+                        }
+                        async function login() {
+                            const result = await post('/api/login');
+                            document.getElementById('msg').innerText = result.body.message;
+                            if (result.status === 200) window.location = '/app';
+                        }
+                        async function register() {
+                            const result = await post('/api/register');
+                            document.getElementById('msg').innerText = result.body.message;
+                        }
+                    </script>
+                </body>
+                </html>
+                """;
+    }
+
+    private String appPage(String username) {
+        return """
+                <!doctype html>
+                <html>
+                <head>
+                    <title>Food Delivery Tracker</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; margin: 30px; background:#f7f9ff; }
+                        .top { display:flex; justify-content:space-between; align-items:center; }
+                        .panel { background:white; padding:16px; border-radius:8px; margin-top:14px; }
+                        input, button { padding:8px; margin:4px; }
+                        table { width:100%; border-collapse: collapse; margin-top:8px; }
+                        th, td { border:1px solid #ddd; padding:8px; text-align:left; }
+                    </style>
+                </head>
+                <body>
+                    <div class="top">
+                        <h2>Welcome, %s</h2>
+                        <form method="post" action="/api/logout"><button>Logout</button></form>
+                    </div>
+
+                    <div class="panel">
+                        <h3>Place Order</h3>
+                        <input id="customer" placeholder="Customer name" />
+                        <input id="item" placeholder="Food item" />
+                        <input id="qty" type="number" placeholder="Quantity" />
+                        <button onclick="placeOrder()">Place</button>
+                        <div id="placeMsg"></div>
+                    </div>
+
+                    <div class="panel">
+                        <h3>Check Status</h3>
+                        <input id="trackId" placeholder="Order ID" />
+                        <button onclick="checkStatus()">Check</button>
+                        <div id="statusMsg"></div>
+                    </div>
+
+                    <div class="panel">
+                        <h3>Order History (Real-time refresh)</h3>
+                        <table>
+                            <thead><tr><th>ID</th><th>Customer</th><th>Item</th><th>Qty</th><th>Status</th><th>Time</th></tr></thead>
+                            <tbody id="ordersBody"></tbody>
+                        </table>
+                    </div>
+
+                    <script>
+                        async function placeOrder() {
+                            const res = await fetch('/api/place-order', {
+                                method:'POST',
+                                headers:{'Content-Type':'application/json'},
+                                body: JSON.stringify({
+                                    customerName: document.getElementById('customer').value,
+                                    itemName: document.getElementById('item').value,
+                                    quantity: document.getElementById('qty').value
+                                })
+                            });
+                            const data = await res.json();
+                            document.getElementById('placeMsg').innerText = data.message + (data.orderId ? (' ID: ' + data.orderId) : '');
+                            loadOrders();
+                        }
+                        async function checkStatus() {
+                            const id = document.getElementById('trackId').value;
+                            const res = await fetch('/api/status?id=' + encodeURIComponent(id));
+                            const data = await res.json();
+                            document.getElementById('statusMsg').innerText = data.status ? (data.orderId + ': ' + data.status) : data.message;
+                        }
+                        async function loadOrders() {
+                            const res = await fetch('/api/orders');
+                            const data = await res.json();
+                            const body = document.getElementById('ordersBody');
+                            body.innerHTML = '';
+                            (data.orders || []).forEach(order => {
+                                const row = `<tr><td>${order.orderId}</td><td>${order.customerName}</td><td>${order.itemName}</td><td>${order.quantity}</td><td>${order.status}</td><td>${order.orderTime}</td></tr>`;
+                                body.innerHTML += row;
+                            });
+                        }
+                        setInterval(loadOrders, 2000);
+                        loadOrders();
+                    </script>
+                </body>
+                </html>
+                """.formatted(username);
     }
 }
