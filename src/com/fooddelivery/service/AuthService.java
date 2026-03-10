@@ -10,11 +10,15 @@ import java.util.List;
 import java.util.Optional;
 
 public class AuthService {
+    public static final String DEFAULT_USERNAME = "student";
+    public static final String DEFAULT_PASSWORD = "student123";
+
     private final UserFileStore userFileStore = new UserFileStore();
     private final List<UserAccount> users = new ArrayList<>();
 
     public AuthService() {
         users.addAll(userFileStore.loadUsers());
+        ensureDefaultUser();
     }
 
     public synchronized void register(String username, String password) {
@@ -28,11 +32,25 @@ public class AuthService {
     }
 
     public synchronized boolean authenticate(String username, String password) {
+        if (username == null || password == null) {
+            return false;
+        }
+
         Optional<UserAccount> user = users.stream()
-                .filter(account -> account.getUsername().equalsIgnoreCase(username))
+                .filter(account -> account.getUsername().equalsIgnoreCase(username.trim()))
                 .findFirst();
 
         return user.map(value -> value.getPasswordHash().equals(hash(password))).orElse(false);
+    }
+
+    private void ensureDefaultUser() {
+        boolean defaultExists = users.stream()
+                .anyMatch(user -> user.getUsername().equalsIgnoreCase(DEFAULT_USERNAME));
+
+        if (!defaultExists) {
+            users.add(new UserAccount(DEFAULT_USERNAME, hash(DEFAULT_PASSWORD)));
+            userFileStore.saveUsers(users);
+        }
     }
 
     private void validate(String username, String password) {
