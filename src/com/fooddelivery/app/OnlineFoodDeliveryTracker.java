@@ -1,6 +1,7 @@
 package com.fooddelivery.app;
 
 import com.fooddelivery.model.Order;
+import com.fooddelivery.model.OrderStatus;
 import com.fooddelivery.service.AuthService;
 import com.fooddelivery.service.OrderService;
 import com.sun.net.httpserver.Headers;
@@ -163,7 +164,13 @@ public class OnlineFoodDeliveryTracker {
             return;
         }
 
-        if (order.get().getStatus() != com.fooddelivery.model.OrderStatus.AWAITING_CUSTOMER_VERIFICATION) {
+        OrderStatus currentStatus = order.get().getStatus();
+        if (currentStatus == OrderStatus.DELIVERED) {
+            writeJson(exchange, 400, jsonMessage("Order is already marked as delivered."));
+            return;
+        }
+
+        if (currentStatus != OrderStatus.AWAITING_CUSTOMER_VERIFICATION) {
             writeJson(exchange, 400, jsonMessage("Order is not ready for customer verification."));
             return;
         }
@@ -394,7 +401,8 @@ public class OnlineFoodDeliveryTracker {
 
                     <div class="panel">
                         <h3>Check Status</h3>
-                        <input id="trackId" placeholder="Order ID" />
+                        <label for="trackId">Order ID:</label>
+                        <select id="trackId"></select>
                         <button onclick="checkStatus()">Check</button>
                         <button onclick="confirmDelivery()">Mark Delivered (Customer Verification)</button>
                         <div id="statusMsg"></div>
@@ -402,6 +410,12 @@ public class OnlineFoodDeliveryTracker {
 
                     <div class="panel">
                         <h3>Order History (Real-time refresh)</h3>
+                        <label for="orderIdFilter">Filter by Order ID:</label>
+                        <select id="orderIdFilter" onchange="renderOrders()"></select>
+                        <label for="statusFilter">Filter by Status:</label>
+                        <select id="statusFilter" onchange="renderOrders()">
+                            <option value="ALL">All Statuses</option>
+                        </select>
                         <table>
                             <thead><tr><th>ID</th><th>Customer</th><th>Item</th><th>Qty</th><th>Status</th><th>Time</th></tr></thead>
                             <tbody id="ordersBody"></tbody>
@@ -409,6 +423,13 @@ public class OnlineFoodDeliveryTracker {
                     </div>
 
                     <script>
+                        let allOrders = [];
+
+                        function selectedOrderId() {
+                            const selected = document.getElementById('trackId').value;
+                            return selected === 'ALL' ? '' : selected;
+                        }
+
                         async function placeOrder() {
                             const res = await fetch('/api/place-order', {
                                 method:'POST',
@@ -424,13 +445,21 @@ public class OnlineFoodDeliveryTracker {
                             loadOrders();
                         }
                         async function checkStatus() {
-                            const id = document.getElementById('trackId').value;
+                            const id = selectedOrderId();
+                            if (!id) {
+                                document.getElementById('statusMsg').innerText = 'Please select an order ID.';
+                                return;
+                            }
                             const res = await fetch('/api/status?id=' + encodeURIComponent(id));
                             const data = await res.json();
                             document.getElementById('statusMsg').innerText = data.status ? (data.orderId + ': ' + data.status) : data.message;
                         }
                         async function confirmDelivery() {
-                            const id = document.getElementById('trackId').value;
+                            const id = selectedOrderId();
+                            if (!id) {
+                                document.getElementById('statusMsg').innerText = 'Please select an order ID.';
+                                return;
+                            }
                             const res = await fetch('/api/confirm-delivery', {
                                 method:'POST',
                                 headers:{'Content-Type':'application/json'},
@@ -440,15 +469,53 @@ public class OnlineFoodDeliveryTracker {
                             document.getElementById('statusMsg').innerText = data.message || 'Updated';
                             loadOrders();
                         }
+
+                        function populateOrderIdSelectors(orders) {
+                            const selectors = [document.getElementById('trackId'), document.getElementById('orderIdFilter')];
+                            selectors.forEach((selector, index) => {
+                                const currentValue = selector.value;
+                                const defaultLabel = index === 0 ? 'Select order ID' : 'All Orders';
+                                selector.innerHTML = `<option value="ALL">${defaultLabel}</option>`;
+                                orders.forEach(order => {
+                                    selector.innerHTML += `<option value="${order.orderId}">${order.orderId}</option>`;
+                                });
+                                selector.value = orders.some(order => order.orderId === currentValue) ? currentValue : 'ALL';
+                            });
+                        }
+
+                        function populateStatusFilter(orders) {
+                            const statusFilter = document.getElementById('statusFilter');
+                            const currentValue = statusFilter.value || 'ALL';
+                            const uniqueStatuses = [...new Set(orders.map(order => order.status))];
+                            statusFilter.innerHTML = '<option value="ALL">All Statuses</option>';
+                            uniqueStatuses.forEach(status => {
+                                statusFilter.innerHTML += `<option value="${status}">${status}</option>`;
+                            });
+                            statusFilter.value = uniqueStatuses.includes(currentValue) ? currentValue : 'ALL';
+                        }
+
+                        function renderOrders() {
+                            const selectedOrderId = document.getElementById('orderIdFilter').value;
+                            const selectedStatus = document.getElementById('statusFilter').value;
+                            const body = document.getElementById('ordersBody');
+
+                            body.innerHTML = '';
+                            allOrders
+                                .filter(order => selectedOrderId === 'ALL' || order.orderId === selectedOrderId)
+                                .filter(order => selectedStatus === 'ALL' || order.status === selectedStatus)
+                                .forEach(order => {
+                                    const row = `<tr><td>${order.orderId}</td><td>${order.customerName}</td><td>${order.itemName}</td><td>${order.quantity}</td><td>${order.status}</td><td>${order.orderTime}</td></tr>`;
+                                    body.innerHTML += row;
+                                });
+                        }
+
                         async function loadOrders() {
                             const res = await fetch('/api/orders');
                             const data = await res.json();
-                            const body = document.getElementById('ordersBody');
-                            body.innerHTML = '';
-                            (data.orders || []).forEach(order => {
-                                const row = `<tr><td>${order.orderId}</td><td>${order.customerName}</td><td>${order.itemName}</td><td>${order.quantity}</td><td>${order.status}</td><td>${order.orderTime}</td></tr>`;
-                                body.innerHTML += row;
-                            });
+                            allOrders = data.orders || [];
+                            populateOrderIdSelectors(allOrders);
+                            populateStatusFilter(allOrders);
+                            renderOrders();
                         }
                         setInterval(loadOrders, 2000);
                         loadOrders();
