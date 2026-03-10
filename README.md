@@ -1,51 +1,91 @@
-# Online Food Delivery Tracker (Java Real-Time Web App)
+# Online Food Delivery Tracker (Java Swing Mini Project)
 
-A beginner-friendly **real-time web application** to manage online food delivery orders with **login** and **persistent order history**.
+A polished, beginner-friendly **Java desktop application** for tracking food delivery orders with login, persistent storage, real-time status progression, and clear module separation.
 
 ## Features
 
-1. **User Login & Registration**
-   - Create account and login from browser
-   - Users are stored on disk and available after app restart
-2. **Place Order**
-   - Enter customer name, food item, and quantity
-   - Generates a unique order ID
-3. **Real-Time Tracking**
-   - Background status progression: `PLACED → PREPARING → OUT_FOR_DELIVERY → DELIVERED`
-   - Browser history table auto-refreshes every 2 seconds
-4. **Order History Persistence**
-   - Orders are saved to local files and loaded at startup
-   - History remains available even after closing the app
+- **Login Screen (Authentication)**
+  - App starts with a dedicated login screen.
+  - Includes a default demo user:
+    - Username: `student`
+    - Password: `student123`
+- **Place Order Module**
+  - Validates customer name, food item, and quantity.
+  - Generates a unique order ID (`ORD1000`, `ORD1001`, ...).
+  - Saves the order permanently.
+  - Instantly refreshes order history after placement.
+- **Delivery Status Module**
+  - Search status using order ID.
+  - Shows clear order lifecycle status.
+  - Status updates in real time.
+- **Order History Module**
+  - Uses `JTable` to display all saved orders.
+  - Loads automatically on app startup.
+  - Persists after closing and reopening the app.
+- **Automatic Status Progression**
+  - Uses beginner-friendly background scheduling and Swing UI refresh.
+  - Progression path:
+    - `PLACED -> PREPARING -> OUT_FOR_DELIVERY -> DELIVERED`
+- **Logout Support**
+  - User can safely logout and return to login screen.
+- **Status/Notification Area**
+  - Clear messages for placement, lookup, validation, and errors.
 
-## Tech Used
+## Main Class to Run
 
-- Java (`com.sun.net.httpserver.HttpServer`) for backend
-- Simple HTML/CSS/JavaScript frontend (served by Java)
-- OOP + service layer design
-- Java Serialization for persistent storage
-- Basic multithreading for status simulation
+```text
+com.fooddelivery.app.OnlineFoodDeliveryTracker
+```
 
 ## Project Structure
 
 ```text
 src/com/fooddelivery/
 ├── app/
-│   └── OnlineFoodDeliveryTracker.java
+│   └── OnlineFoodDeliveryTracker.java      # Application entry point
 ├── model/
-│   ├── Order.java
-│   ├── OrderStatus.java
-│   └── UserAccount.java
+│   ├── Order.java                          # Order entity
+│   ├── OrderStatus.java                    # Status enum
+│   └── UserAccount.java                    # User entity
 ├── service/
-│   ├── AuthService.java
-│   ├── OrderFileStore.java
-│   ├── OrderOperations.java
-│   ├── OrderService.java
-│   └── UserFileStore.java
+│   ├── AuthService.java                    # Login/auth logic + default user
+│   ├── OrderFileStore.java                 # Order persistence
+│   ├── OrderOperations.java                # Order interface abstraction
+│   ├── OrderService.java                   # Order business logic + status updates
+│   └── UserFileStore.java                  # User persistence
+├── ui/
+│   ├── LoginFrame.java                     # Login UI
+│   └── MainFrame.java                      # Main dashboard UI
 └── util/
-    └── OrderIdGenerator.java
+    └── OrderIdGenerator.java               # Unique order ID generation
 ```
 
-## How to Compile and Run
+## Java Concepts Used
+
+- OOP (classes/objects)
+- Encapsulation
+- Abstraction (`OrderOperations` interface)
+- Enums (`OrderStatus`)
+- Collections (`List`)
+- Exception handling (validation and parsing)
+- Java 8 Streams (search/filter/sort)
+- Basic multithreading/background scheduling (`ScheduledExecutorService`)
+- Swing `Timer` for regular UI refresh
+- File handling with serialization for persistence
+
+## Persistence Details
+
+Data files are stored in:
+
+```text
+~/.online-food-delivery-tracker/
+├── orders-data.ser
+└── users-data.ser
+```
+
+This ensures history and users remain available across normal restarts.
+
+## Compile and Run
 
 From project root:
 
@@ -55,13 +95,9 @@ javac -d out $(find src -name "*.java")
 java -cp out com.fooddelivery.app.OnlineFoodDeliveryTracker
 ```
 
-Then open:
+## Notes for Mini Project Submission
 
-- `http://localhost:8080`
-
-## Data Files
-
-Stored in your home directory:
-
-- `~/.online-food-delivery-tracker/orders-data.ser`
-- `~/.online-food-delivery-tracker/users-data.ser`
+- Fully Java-based desktop app (no web framework).
+- Clean UI with organized sections and table-based history.
+- Persistent order history and authentication included.
+- Real-time status behavior implemented in a beginner-friendly way.

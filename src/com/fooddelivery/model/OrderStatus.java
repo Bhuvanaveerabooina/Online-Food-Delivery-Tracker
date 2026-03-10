@@ -7,6 +7,9 @@ public enum OrderStatus {
     PLACED,
     PREPARING,
     OUT_FOR_DELIVERY,
-    AWAITING_CUSTOMER_VERIFICATION,
-    DELIVERED
+    DELIVERED;
+
+    public String getDisplayName() {
+        return name().replace('_', ' ');
+    }
 }
