@@ -3,11 +3,9 @@ package com.fooddelivery.service;
 import com.fooddelivery.model.Role;
 import com.fooddelivery.model.User;
 import com.fooddelivery.repo.UserRepository;
-import org.springframework.stereotype.Service;
 
 import java.util.Optional;
 
-@Service
 public class AuthService {
     private final UserRepository userRepository;
 
