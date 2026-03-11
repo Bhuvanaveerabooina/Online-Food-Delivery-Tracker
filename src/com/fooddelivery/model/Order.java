@@ -3,59 +3,56 @@ package com.fooddelivery.model;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
-/**
- * Data class representing one food order.
- */
 public class Order implements Serializable {
-    private static final long serialVersionUID = 1L;
+    private static final long serialVersionUID = 2L;
 
     private final String orderId;
-    private final String placedByUsername;
+    private final String customerUsername;
     private final String customerName;
+    private final String restaurantName;
     private final String itemName;
+    private final double itemPrice;
     private final int quantity;
+    private final String address;
     private final LocalDateTime orderTime;
     private OrderStatus status;
+    private String assignedDeliveryUsername;
 
-    public Order(String orderId, String placedByUsername, String customerName, String itemName, int quantity) {
+    public Order(String orderId, String customerUsername, String customerName, String restaurantName,
+                 String itemName, double itemPrice, int quantity, String address) {
         this.orderId = orderId;
-        this.placedByUsername = placedByUsername;
+        this.customerUsername = customerUsername;
         this.customerName = customerName;
+        this.restaurantName = restaurantName;
         this.itemName = itemName;
+        this.itemPrice = itemPrice;
         this.quantity = quantity;
+        this.address = address;
         this.orderTime = LocalDateTime.now();
         this.status = OrderStatus.PLACED;
     }
 
-    public String getOrderId() {
-        return orderId;
-    }
+    public String getOrderId() { return orderId; }
+    public String getCustomerUsername() { return customerUsername; }
+    public String getCustomerName() { return customerName; }
+    public String getRestaurantName() { return restaurantName; }
+    public String getItemName() { return itemName; }
+    public double getItemPrice() { return itemPrice; }
+    public int getQuantity() { return quantity; }
+    public String getAddress() { return address; }
+    public LocalDateTime getOrderTime() { return orderTime; }
+    public OrderStatus getStatus() { return status; }
+    public String getAssignedDeliveryUsername() { return assignedDeliveryUsername; }
 
-    public String getPlacedByUsername() {
-        return placedByUsername;
-    }
-
-    public String getCustomerName() {
-        return customerName;
-    }
-
-    public String getItemName() {
-        return itemName;
-    }
-
-    public int getQuantity() {
-        return quantity;
-    }
-
-    public LocalDateTime getOrderTime() {
-        return orderTime;
-    }
-
-    public OrderStatus getStatus() {
-        return status;
+    public double getTotalPrice() {
+        return itemPrice * quantity;
     }
 
     public void setStatus(OrderStatus status) {
         this.status = status;
+    }
+
+    public void setAssignedDeliveryUsername(String assignedDeliveryUsername) {
+        this.assignedDeliveryUsername = assignedDeliveryUsername;
     }
 }

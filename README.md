@@ -1,92 +1,97 @@
-# Online Food Delivery Tracker (Java Swing Mini Project)
+# Online Food Delivery Tracker (Role-Based Java Swing Mini Project)
 
-A polished, beginner-friendly **Java desktop application** for tracking food delivery orders with login, persistent storage, real-time status progression, and clear module separation.
+## Project Overview
+This project is a Java desktop application built using **Swing** for an academic mini project.  
+It tracks food delivery orders with a **role-based login system** and separate dashboards for:
+- Customer
+- Restaurant Owner
+- Delivery Person
+
+The application uses local file storage (Java serialization) so data persists across restarts.
+
+## User Roles
+### 1) Customer
+- Login with role = `CUSTOMER`
+- Place order with:
+  - Restaurant dropdown
+  - Menu item dropdown
+  - Auto price display
+  - Quantity
+  - Delivery address
+- Gets a unique order ID when order is placed
+- Can view only their own order history and current statuses
+
+### 2) Restaurant Owner
+- Login with role = `RESTAURANT_OWNER`
+- Can view only orders of their own restaurant
+- Can search/filter orders by order ID or customer name
+- Can view customer name and address
+- Can update status with valid transitions:
+  - `PLACED -> PREPARING -> READY_FOR_PICKUP`
+
+### 3) Delivery Person
+- Login with role = `DELIVERY_PERSON`
+- Can view delivery-relevant orders (`READY_FOR_PICKUP` / `OUT_FOR_DELIVERY`)
+- Can start delivery (`READY_FOR_PICKUP -> OUT_FOR_DELIVERY`)
+- Can mark delivered (`OUT_FOR_DELIVERY -> DELIVERED`)
+- Invalid actions are blocked with validation messages
 
 ## Features
-
-- **Login Screen (Authentication)**
-  - App starts with a dedicated login screen.
-  - Includes a default demo user:
-    - Username: `student`
-    - Password: `student123`
-- **Place Order Module**
-  - Validates customer name, food item, and quantity.
-  - Generates a unique order ID (`ORD1000`, `ORD1001`, ...).
-  - Saves the order permanently.
-  - Instantly refreshes order history after placement.
-- **Delivery Status Module**
-  - Search status using order ID.
-  - Shows clear order lifecycle status.
-  - Status updates in real time.
-- **Order History Module**
-  - Uses `JTable` to display all saved orders.
-  - Loads automatically on app startup.
-  - Persists after closing and reopening the app.
-- **Automatic Status Progression**
-  - Uses beginner-friendly background scheduling and Swing UI refresh.
-  - Progression path:
-    - `PLACED -> PREPARING -> OUT_FOR_DELIVERY -> DELIVERED`
-- **Logout Support**
-  - User can safely logout and return to login screen.
-- **Status/Notification Area**
-  - Clear messages for placement, lookup, validation, and errors.
-
-## Main Class to Run
-
-```text
-com.fooddelivery.app.OnlineFoodDeliveryTracker
-```
+- Role-based login screen with username, password, role dropdown
+- Separate dashboard/panel per role
+- Real-time-like dashboard refresh (timer-based)
+- Persistent storage for:
+  - Users
+  - Restaurants and menu
+  - Orders
+- Order history retained after reopening app
+- Input validations for empty fields, quantity, login, and status transitions
+- Java 8 stream filtering for restaurant owner search
 
 ## Project Structure
-
-```text
+```
 src/com/fooddelivery/
-├── app/
-│   └── OnlineFoodDeliveryTracker.java      # Application entry point
-├── model/
-│   ├── Order.java                          # Order entity
-│   ├── OrderStatus.java                    # Status enum
-│   └── UserAccount.java                    # User entity
-├── service/
-│   ├── AuthService.java                    # Login/auth logic + default user
-│   ├── OrderFileStore.java                 # Order persistence
-│   ├── OrderOperations.java                # Order interface abstraction
-│   ├── OrderService.java                   # Order business logic + status updates
-│   └── UserFileStore.java                  # User persistence
-├── ui/
-│   ├── LoginFrame.java                     # Login UI
-│   └── MainFrame.java                      # Main dashboard UI
-└── util/
-    └── OrderIdGenerator.java               # Unique order ID generation
+  app/
+    OnlineFoodDeliveryTracker.java        # Main class to run
+  model/
+    Role.java
+    OrderStatus.java
+    UserAccount.java
+    Restaurant.java
+    MenuItem.java
+    Order.java
+  service/
+    AuthService.java
+    OrderService.java
+    OrderOperations.java
+    RestaurantService.java
+    UserFileStore.java
+    RestaurantFileStore.java
+    OrderFileStore.java
+  ui/
+    LoginFrame.java
+    DashboardFrame.java
+    CustomerPanel.java
+    RestaurantOwnerPanel.java
+    DeliveryPanel.java
 ```
 
-## Java Concepts Used
-
-- OOP (classes/objects)
-- Encapsulation
-- Abstraction (`OrderOperations` interface)
-- Enums (`OrderStatus`)
+## Technologies / Concepts Used
+- Java (JDK 8+)
+- Java Swing (`JFrame`, `JPanel`, `JTable`, `JComboBox`, etc.)
+- OOP (encapsulation, separation of concerns)
+- Enums for role and status
 - Collections (`List`)
-- Exception handling (validation and parsing)
-- Java 8 Streams (search/filter/sort)
-- Basic multithreading/background scheduling (`ScheduledExecutorService`)
-- Swing `Timer` for regular UI refresh
-- File handling with serialization for persistence
+- Java 8 Streams for filtering/search
+- Exception handling and validation
+- File persistence using Java serialization
 
-## Persistence Details
-
-Data files are stored in:
-
-```text
-~/.online-food-delivery-tracker/
-├── orders-data.ser
-└── users-data.ser
-```
-
-This ensures history and users remain available across normal restarts.
+## Demo Credentials
+- Customer: `customer1 / cust123`
+- Restaurant Owner: `owner_spice / owner123` (Spice Hub)
+- Delivery Person: `delivery1 / del123`
 
 ## Compile and Run
-
 From project root:
 
 ```bash
@@ -95,9 +100,10 @@ javac -d out $(find src -name "*.java")
 java -cp out com.fooddelivery.app.OnlineFoodDeliveryTracker
 ```
 
-## Notes for Mini Project Submission
-
-- Fully Java-based desktop app (no web framework).
-- Clean UI with organized sections and table-based history.
-- Persistent order history and authentication included.
-- Real-time status behavior implemented in a beginner-friendly way.
+## Notes for Viva / Submission
+- Main class: `com.fooddelivery.app.OnlineFoodDeliveryTracker`
+- Status updates done by role-based workflow instead of automatic timer simulation
+- Data files are stored under:
+  - `~/.online-food-delivery-tracker/users-data.ser`
+  - `~/.online-food-delivery-tracker/restaurants-data.ser`
+  - `~/.online-food-delivery-tracker/orders-data.ser`

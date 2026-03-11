@@ -1,5 +1,6 @@
 package com.fooddelivery.service;
 
+import com.fooddelivery.model.Role;
 import com.fooddelivery.model.UserAccount;
 
 import java.nio.charset.StandardCharsets;
@@ -10,56 +11,38 @@ import java.util.List;
 import java.util.Optional;
 
 public class AuthService {
-    public static final String DEFAULT_USERNAME = "student";
-    public static final String DEFAULT_PASSWORD = "student123";
-
     private final UserFileStore userFileStore = new UserFileStore();
     private final List<UserAccount> users = new ArrayList<>();
 
     public AuthService() {
         users.addAll(userFileStore.loadUsers());
-        ensureDefaultUser();
+        ensureDefaultUsers();
     }
 
-    public synchronized void register(String username, String password) {
-        validate(username, password);
-        boolean exists = users.stream().anyMatch(user -> user.getUsername().equalsIgnoreCase(username));
-        if (exists) {
-            throw new IllegalArgumentException("Username already exists.");
-        }
-        users.add(new UserAccount(username.trim(), hash(password)));
-        userFileStore.saveUsers(users);
-    }
-
-    public synchronized boolean authenticate(String username, String password) {
-        if (username == null || password == null) {
-            return false;
+    public synchronized Optional<UserAccount> authenticate(String username, String password, Role role) {
+        if (username == null || password == null || role == null) {
+            return Optional.empty();
         }
 
-        Optional<UserAccount> user = users.stream()
+        return users.stream()
                 .filter(account -> account.getUsername().equalsIgnoreCase(username.trim()))
+                .filter(account -> account.getRole() == role)
+                .filter(account -> account.getPasswordHash().equals(hash(password)))
                 .findFirst();
-
-        return user.map(value -> value.getPasswordHash().equals(hash(password))).orElse(false);
     }
 
-    private void ensureDefaultUser() {
-        boolean defaultExists = users.stream()
-                .anyMatch(user -> user.getUsername().equalsIgnoreCase(DEFAULT_USERNAME));
+    private void ensureDefaultUsers() {
+        if (!users.isEmpty()) {
+            return;
+        }
 
-        if (!defaultExists) {
-            users.add(new UserAccount(DEFAULT_USERNAME, hash(DEFAULT_PASSWORD)));
-            userFileStore.saveUsers(users);
-        }
-    }
+        users.add(new UserAccount("customer1", hash("cust123"), Role.CUSTOMER, null));
+        users.add(new UserAccount("owner_spice", hash("owner123"), Role.RESTAURANT_OWNER, "Spice Hub"));
+        users.add(new UserAccount("owner_burger", hash("owner123"), Role.RESTAURANT_OWNER, "Burger Barn"));
+        users.add(new UserAccount("owner_pizza", hash("owner123"), Role.RESTAURANT_OWNER, "Pizza Corner"));
+        users.add(new UserAccount("delivery1", hash("del123"), Role.DELIVERY_PERSON, null));
 
-    private void validate(String username, String password) {
-        if (username == null || username.trim().length() < 3) {
-            throw new IllegalArgumentException("Username must be at least 3 characters.");
-        }
-        if (password == null || password.length() < 4) {
-            throw new IllegalArgumentException("Password must be at least 4 characters.");
-        }
+        userFileStore.saveUsers(users);
     }
 
     private String hash(String text) {
