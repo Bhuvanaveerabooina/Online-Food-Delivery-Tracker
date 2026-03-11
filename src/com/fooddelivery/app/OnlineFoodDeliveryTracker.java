@@ -1,6 +1,8 @@
 package com.fooddelivery.app;
 
 import com.fooddelivery.model.Order;
+import com.fooddelivery.model.UserAccount;
+import com.fooddelivery.model.UserRole;
 import com.fooddelivery.service.AuthService;
 import com.fooddelivery.service.OrderService;
 import com.sun.net.httpserver.Headers;
@@ -22,7 +24,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Starts a web application for real-time order tracking with login.
+ * Starts a web application for real-time order tracking with role-based login.
  */
 public class OnlineFoodDeliveryTracker {
     private static final int PORT = 8080;
@@ -30,7 +32,7 @@ public class OnlineFoodDeliveryTracker {
 
     private final OrderService orderService = new OrderService();
     private final AuthService authService = new AuthService();
-    private final Map<String, String> sessions = new ConcurrentHashMap<>();
+    private final Map<String, UserAccount> sessions = new ConcurrentHashMap<>();
 
     public static void main(String[] args) throws IOException {
         new OnlineFoodDeliveryTracker().start();
@@ -55,22 +57,22 @@ public class OnlineFoodDeliveryTracker {
     }
 
     private void handleRoot(HttpExchange exchange) throws IOException {
-        String username = getLoggedInUser(exchange);
-        redirect(exchange, username == null ? "/login" : "/app");
+        UserAccount account = getLoggedInUser(exchange);
+        redirect(exchange, account == null ? "/login" : "/app");
     }
 
     private void handleApp(HttpExchange exchange) throws IOException {
-        String username = getLoggedInUser(exchange);
-        if (username == null) {
+        UserAccount account = getLoggedInUser(exchange);
+        if (account == null) {
             redirect(exchange, "/login");
             return;
         }
-        serveHtml(exchange, appPage(username));
+        serveHtml(exchange, appPage(account));
     }
 
     private void handleRegister(HttpExchange exchange, Map<String, String> payload) throws IOException {
         try {
-            authService.register(payload.get("username"), payload.get("password"));
+            authService.register(payload.get("username"), payload.get("password"), payload.get("role"));
             writeJson(exchange, 200, "{\"message\":\"Account created successfully. Please login.\"}");
         } catch (IllegalArgumentException exception) {
             writeJson(exchange, 400, jsonMessage(exception.getMessage()));
@@ -79,14 +81,14 @@ public class OnlineFoodDeliveryTracker {
 
     private void handleLogin(HttpExchange exchange, Map<String, String> payload) throws IOException {
         String username = payload.getOrDefault("username", "").trim();
-        boolean authenticated = authService.authenticate(username, payload.get("password"));
-        if (!authenticated) {
+        Optional<UserAccount> account = authService.authenticate(username, payload.get("password"));
+        if (account.isEmpty()) {
             writeJson(exchange, 401, jsonMessage("Invalid username or password."));
             return;
         }
 
         String token = UUID.randomUUID().toString();
-        sessions.put(token, username);
+        sessions.put(token, account.get());
         exchange.getResponseHeaders().add("Set-Cookie", "SESSION=" + token + "; Path=/; HttpOnly");
         writeJson(exchange, 200, "{\"message\":\"Login successful.\"}");
     }
@@ -101,18 +103,26 @@ public class OnlineFoodDeliveryTracker {
     }
 
     private void handlePlaceOrder(HttpExchange exchange, Map<String, String> payload) throws IOException {
-        String username = getLoggedInUser(exchange);
-        if (username == null) {
+        UserAccount account = getLoggedInUser(exchange);
+        if (account == null) {
             writeJson(exchange, 401, jsonMessage("Please login first."));
+            return;
+        }
+        if (account.getRole() != UserRole.CUSTOMER) {
+            writeJson(exchange, 403, jsonMessage("Only customers can place orders."));
             return;
         }
 
         try {
             int quantity = Integer.parseInt(payload.getOrDefault("quantity", "0"));
+            double price = Double.parseDouble(payload.getOrDefault("price", "0"));
             Order order = orderService.placeOrder(
-                    username,
+                    account.getUsername(),
                     payload.getOrDefault("customerName", "").trim(),
+                    payload.getOrDefault("customerAddress", "").trim(),
+                    payload.getOrDefault("restaurantName", "").trim(),
                     payload.getOrDefault("itemName", "").trim(),
+                    price,
                     quantity
             );
             writeJson(exchange, 200, "{\"message\":\"Order placed.\",\"orderId\":\"" + order.getOrderId() + "\"}");
@@ -122,8 +132,8 @@ public class OnlineFoodDeliveryTracker {
     }
 
     private void handleStatus(HttpExchange exchange) throws IOException {
-        String username = getLoggedInUser(exchange);
-        if (username == null) {
+        UserAccount account = getLoggedInUser(exchange);
+        if (account == null) {
             writeJson(exchange, 401, jsonMessage("Please login first."));
             return;
         }
@@ -134,7 +144,10 @@ public class OnlineFoodDeliveryTracker {
             orderId = query.substring(3);
         }
 
-        Optional<Order> order = orderService.findOrderById(username, orderId);
+        Optional<Order> order = account.getRole() == UserRole.CUSTOMER
+                ? orderService.findOrderById(account.getUsername(), orderId)
+                : orderService.findAnyOrderById(orderId);
+
         if (order.isEmpty()) {
             writeJson(exchange, 404, jsonMessage("Order not found."));
             return;
@@ -145,9 +158,13 @@ public class OnlineFoodDeliveryTracker {
 
 
     private void handleConfirmDelivery(HttpExchange exchange, Map<String, String> payload) throws IOException {
-        String username = getLoggedInUser(exchange);
-        if (username == null) {
+        UserAccount account = getLoggedInUser(exchange);
+        if (account == null) {
             writeJson(exchange, 401, jsonMessage("Please login first."));
+            return;
+        }
+        if (account.getRole() != UserRole.DELIVERY_PERSON) {
+            writeJson(exchange, 403, jsonMessage("Only delivery person can mark delivered."));
             return;
         }
 
@@ -157,18 +174,7 @@ public class OnlineFoodDeliveryTracker {
             return;
         }
 
-        Optional<Order> order = orderService.findOrderById(username, orderId);
-        if (order.isEmpty()) {
-            writeJson(exchange, 404, jsonMessage("Order not found."));
-            return;
-        }
-
-        if (order.get().getStatus() != com.fooddelivery.model.OrderStatus.AWAITING_CUSTOMER_VERIFICATION) {
-            writeJson(exchange, 400, jsonMessage("Order is not ready for customer verification."));
-            return;
-        }
-
-        boolean updated = orderService.markOrderAsDelivered(username, orderId);
+        boolean updated = orderService.markOrderAsDeliveredByDeliveryPerson(orderId);
         if (!updated) {
             writeJson(exchange, 400, jsonMessage("Order could not be marked as delivered."));
             return;
@@ -178,21 +184,35 @@ public class OnlineFoodDeliveryTracker {
     }
 
     private void handleOrders(HttpExchange exchange) throws IOException {
-        String username = getLoggedInUser(exchange);
-        if (username == null) {
+        UserAccount account = getLoggedInUser(exchange);
+        if (account == null) {
             writeJson(exchange, 401, jsonMessage("Please login first."));
             return;
         }
 
-        List<Order> orders = orderService.getOrderHistory(username);
+        String filter = "";
+        String query = exchange.getRequestURI().getQuery();
+        if (query != null && query.startsWith("customer=")) {
+            filter = query.substring("customer=".length());
+        }
+
+        List<Order> orders = switch (account.getRole()) {
+            case CUSTOMER -> orderService.getOrderHistory(account.getUsername());
+            case RESTAURANT_OWNER -> orderService.getOrdersByCustomerFilter(filter);
+            case DELIVERY_PERSON -> orderService.getAllOrders();
+        };
+
         StringBuilder json = new StringBuilder();
         json.append("{\"orders\":[");
         for (int i = 0; i < orders.size(); i++) {
             Order order = orders.get(i);
             json.append("{\"orderId\":\"").append(order.getOrderId())
                     .append("\",\"customerName\":\"").append(escape(order.getCustomerName()))
+                    .append("\",\"customerAddress\":\"").append(escape(safe(order.getCustomerAddress())))
+                    .append("\",\"restaurantName\":\"").append(escape(safe(order.getRestaurantName())))
                     .append("\",\"itemName\":\"").append(escape(order.getItemName()))
                     .append("\",\"quantity\":").append(order.getQuantity())
+                    .append(",\"price\":").append(order.getPrice())
                     .append(",\"status\":\"").append(order.getStatus())
                     .append("\",\"orderTime\":\"").append(order.getOrderTime().format(TIME_FORMATTER))
                     .append("\"}");
@@ -204,7 +224,7 @@ public class OnlineFoodDeliveryTracker {
         writeJson(exchange, 200, json.toString());
     }
 
-    private String getLoggedInUser(HttpExchange exchange) {
+    private UserAccount getLoggedInUser(HttpExchange exchange) {
         String token = readCookie(exchange, "SESSION");
         if (token == null) {
             return null;
@@ -256,6 +276,10 @@ public class OnlineFoodDeliveryTracker {
 
     private String escape(String value) {
         return value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private String safe(String value) {
+        return value == null ? "" : value;
     }
 
     private String jsonMessage(String message) {
@@ -322,7 +346,7 @@ public class OnlineFoodDeliveryTracker {
                     <style>
                         body { font-family: Arial, sans-serif; margin: 40px; background: #f4f7ff; }
                         .card { max-width: 460px; background: white; padding: 24px; margin: auto; border-radius: 8px; }
-                        input, button { width: 100%; padding: 10px; margin-top: 8px; }
+                        input, button, select { width: 100%; padding: 10px; margin-top: 8px; }
                         .message { color: #204685; margin-top: 10px; }
                     </style>
                 </head>
@@ -331,6 +355,11 @@ public class OnlineFoodDeliveryTracker {
                         <h2>Food Delivery Tracker Login</h2>
                         <input id="username" placeholder="Username" />
                         <input id="password" type="password" placeholder="Password" />
+                        <select id="role">
+                            <option value="CUSTOMER">Customer</option>
+                            <option value="RESTAURANT_OWNER">Restaurant Owner</option>
+                            <option value="DELIVERY_PERSON">Delivery Person</option>
+                        </select>
                         <button onclick="login()">Login</button>
                         <button onclick="register()">Register</button>
                         <div id="msg" class="message"></div>
@@ -342,7 +371,8 @@ public class OnlineFoodDeliveryTracker {
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
                                     username: document.getElementById('username').value,
-                                    password: document.getElementById('password').value
+                                    password: document.getElementById('password').value,
+                                    role: document.getElementById('role').value
                                 })
                             });
                             return {status: res.status, body: await res.json()};
@@ -362,7 +392,7 @@ public class OnlineFoodDeliveryTracker {
                 """;
     }
 
-    private String appPage(String username) {
+    private String appPage(UserAccount account) {
         return """
                 <!doctype html>
                 <html>
@@ -372,50 +402,87 @@ public class OnlineFoodDeliveryTracker {
                         body { font-family: Arial, sans-serif; margin: 30px; background:#f7f9ff; }
                         .top { display:flex; justify-content:space-between; align-items:center; }
                         .panel { background:white; padding:16px; border-radius:8px; margin-top:14px; }
-                        input, button { padding:8px; margin:4px; }
+                        input, button, select { padding:8px; margin:4px; }
                         table { width:100%; border-collapse: collapse; margin-top:8px; }
                         th, td { border:1px solid #ddd; padding:8px; text-align:left; }
                     </style>
                 </head>
                 <body>
                     <div class="top">
-                        <h2>Welcome, __USERNAME__</h2>
+                        <h2>Welcome, __USERNAME__ (__ROLE__)</h2>
                         <form method="post" action="/api/logout"><button>Logout</button></form>
                     </div>
 
-                    <div class="panel">
-                        <h3>Place Order</h3>
+                    <div class="panel" id="customerPanel" style="display:none;">
+                        <h3>Place Order (Customer)</h3>
                         <input id="customer" placeholder="Customer name" />
-                        <input id="item" placeholder="Food item" />
+                        <input id="address" placeholder="Delivery address" />
+                        <select id="restaurant" onchange="syncItemPrice()">
+                            <option value="Spice Hub">Spice Hub</option>
+                            <option value="Urban Bites">Urban Bites</option>
+                            <option value="Green Bowl">Green Bowl</option>
+                        </select>
+                        <select id="item" onchange="syncItemPrice()">
+                            <option value="Paneer Wrap">Paneer Wrap</option>
+                            <option value="Veg Burger">Veg Burger</option>
+                            <option value="Pasta">Pasta</option>
+                        </select>
+                        <input id="price" type="number" step="0.01" readonly />
                         <input id="qty" type="number" placeholder="Quantity" />
                         <button onclick="placeOrder()">Place</button>
                         <div id="placeMsg"></div>
                     </div>
 
-                    <div class="panel">
-                        <h3>Check Status</h3>
+                    <div class="panel" id="ownerPanel" style="display:none;">
+                        <h3>Restaurant Owner Controls</h3>
+                        <input id="customerFilter" placeholder="Filter by customer name" />
+                        <button onclick="loadOrders()">Apply Filter</button>
+                        <p>Use order table to monitor all statuses.</p>
+                    </div>
+
+                    <div class="panel" id="deliveryPanel" style="display:none;">
+                        <h3>Delivery Person Controls</h3>
                         <input id="trackId" placeholder="Order ID" />
-                        <button onclick="checkStatus()">Check</button>
-                        <button onclick="confirmDelivery()">Mark Delivered (Customer Verification)</button>
+                        <button onclick="confirmDelivery()">Mark Delivered</button>
                         <div id="statusMsg"></div>
                     </div>
 
                     <div class="panel">
-                        <h3>Order History (Real-time refresh)</h3>
+                        <h3>Order Details</h3>
                         <table>
-                            <thead><tr><th>ID</th><th>Customer</th><th>Item</th><th>Qty</th><th>Status</th><th>Time</th></tr></thead>
+                            <thead><tr><th>ID</th><th>Customer</th><th>Address</th><th>Restaurant</th><th>Item</th><th>Price</th><th>Qty</th><th>Status</th><th>Time</th></tr></thead>
                             <tbody id="ordersBody"></tbody>
                         </table>
                     </div>
 
                     <script>
+                        const role = '__ROLE__';
+                        const menuPrices = { 'Paneer Wrap': 150, 'Veg Burger': 110, 'Pasta': 180 };
+
+                        function initRoleView() {
+                            if (role === 'CUSTOMER') document.getElementById('customerPanel').style.display = 'block';
+                            if (role === 'RESTAURANT_OWNER') document.getElementById('ownerPanel').style.display = 'block';
+                            if (role === 'DELIVERY_PERSON') document.getElementById('deliveryPanel').style.display = 'block';
+                            syncItemPrice();
+                        }
+
+                        function syncItemPrice() {
+                            const item = document.getElementById('item');
+                            const price = document.getElementById('price');
+                            if (!item || !price) return;
+                            price.value = menuPrices[item.value] || 0;
+                        }
+
                         async function placeOrder() {
                             const res = await fetch('/api/place-order', {
                                 method:'POST',
                                 headers:{'Content-Type':'application/json'},
                                 body: JSON.stringify({
                                     customerName: document.getElementById('customer').value,
+                                    customerAddress: document.getElementById('address').value,
+                                    restaurantName: document.getElementById('restaurant').value,
                                     itemName: document.getElementById('item').value,
+                                    price: document.getElementById('price').value,
                                     quantity: document.getElementById('qty').value
                                 })
                             });
@@ -423,12 +490,7 @@ public class OnlineFoodDeliveryTracker {
                             document.getElementById('placeMsg').innerText = data.message + (data.orderId ? (' ID: ' + data.orderId) : '');
                             loadOrders();
                         }
-                        async function checkStatus() {
-                            const id = document.getElementById('trackId').value;
-                            const res = await fetch('/api/status?id=' + encodeURIComponent(id));
-                            const data = await res.json();
-                            document.getElementById('statusMsg').innerText = data.status ? (data.orderId + ': ' + data.status) : data.message;
-                        }
+
                         async function confirmDelivery() {
                             const id = document.getElementById('trackId').value;
                             const res = await fetch('/api/confirm-delivery', {
@@ -440,21 +502,31 @@ public class OnlineFoodDeliveryTracker {
                             document.getElementById('statusMsg').innerText = data.message || 'Updated';
                             loadOrders();
                         }
+
                         async function loadOrders() {
-                            const res = await fetch('/api/orders');
+                            let url = '/api/orders';
+                            if (role === 'RESTAURANT_OWNER') {
+                                const filter = encodeURIComponent(document.getElementById('customerFilter').value || '');
+                                url += '?customer=' + filter;
+                            }
+                            const res = await fetch(url);
                             const data = await res.json();
                             const body = document.getElementById('ordersBody');
                             body.innerHTML = '';
                             (data.orders || []).forEach(order => {
-                                const row = `<tr><td>${order.orderId}</td><td>${order.customerName}</td><td>${order.itemName}</td><td>${order.quantity}</td><td>${order.status}</td><td>${order.orderTime}</td></tr>`;
+                                const row = `<tr><td>${order.orderId}</td><td>${order.customerName}</td><td>${order.customerAddress || ''}</td><td>${order.restaurantName || ''}</td><td>${order.itemName}</td><td>${order.price}</td><td>${order.quantity}</td><td>${order.status}</td><td>${order.orderTime}</td></tr>`;
                                 body.innerHTML += row;
                             });
                         }
+
+                        initRoleView();
                         setInterval(loadOrders, 2000);
                         loadOrders();
                     </script>
                 </body>
                 </html>
-                """.replace("__USERNAME__", escape(username));
+                """
+                .replace("__USERNAME__", escape(account.getUsername()))
+                .replace("__ROLE__", account.getRole().name());
     }
 }

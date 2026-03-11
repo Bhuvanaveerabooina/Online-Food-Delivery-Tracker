@@ -7,10 +7,12 @@ public class UserAccount implements Serializable {
 
     private final String username;
     private final String passwordHash;
+    private final UserRole role;
 
-    public UserAccount(String username, String passwordHash) {
+    public UserAccount(String username, String passwordHash, UserRole role) {
         this.username = username;
         this.passwordHash = passwordHash;
+        this.role = role;
     }
 
     public String getUsername() {
@@ -19,5 +21,9 @@ public class UserAccount implements Serializable {
 
     public String getPasswordHash() {
         return passwordHash;
+    }
+
+    public UserRole getRole() {
+        return role;
     }
 }

@@ -1,6 +1,7 @@
 package com.fooddelivery.service;
 
 import com.fooddelivery.model.UserAccount;
+import com.fooddelivery.model.UserRole;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -15,24 +16,40 @@ public class AuthService {
 
     public AuthService() {
         users.addAll(userFileStore.loadUsers());
+        migrateLegacyUsersWithoutRole();
     }
 
-    public synchronized void register(String username, String password) {
+    private void migrateLegacyUsersWithoutRole() {
+        boolean changed = false;
+        for (int i = 0; i < users.size(); i++) {
+            UserAccount account = users.get(i);
+            if (account.getRole() == null) {
+                users.set(i, new UserAccount(account.getUsername(), account.getPasswordHash(), UserRole.CUSTOMER));
+                changed = true;
+            }
+        }
+        if (changed) {
+            userFileStore.saveUsers(users);
+        }
+    }
+
+    public synchronized void register(String username, String password, String roleValue) {
         validate(username, password);
+        UserRole role = UserRole.fromValue(roleValue);
         boolean exists = users.stream().anyMatch(user -> user.getUsername().equalsIgnoreCase(username));
         if (exists) {
             throw new IllegalArgumentException("Username already exists.");
         }
-        users.add(new UserAccount(username.trim(), hash(password)));
+        users.add(new UserAccount(username.trim(), hash(password), role));
         userFileStore.saveUsers(users);
     }
 
-    public synchronized boolean authenticate(String username, String password) {
+    public synchronized Optional<UserAccount> authenticate(String username, String password) {
         Optional<UserAccount> user = users.stream()
                 .filter(account -> account.getUsername().equalsIgnoreCase(username))
                 .findFirst();
 
-        return user.map(value -> value.getPasswordHash().equals(hash(password))).orElse(false);
+        return user.filter(value -> value.getPasswordHash().equals(hash(password)));
     }
 
     private void validate(String username, String password) {

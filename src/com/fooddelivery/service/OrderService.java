@@ -7,6 +7,7 @@ import com.fooddelivery.util.OrderIdGenerator;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -28,11 +29,31 @@ public class OrderService implements OrderOperations {
 
     @Override
     public synchronized Order placeOrder(String username, String customerName, String itemName, int quantity) {
+        return placeOrder(username, customerName, "", "", itemName, 0, quantity);
+    }
+
+    public synchronized Order placeOrder(String username, String customerName, String customerAddress,
+                                         String restaurantName, String itemName, double price, int quantity) {
         if (quantity <= 0) {
             throw new IllegalArgumentException("Quantity must be greater than 0.");
         }
+        if (restaurantName == null || restaurantName.trim().isEmpty()) {
+            throw new IllegalArgumentException("Restaurant name is required.");
+        }
+        if (customerAddress == null || customerAddress.trim().isEmpty()) {
+            throw new IllegalArgumentException("Customer address is required.");
+        }
 
-        Order order = new Order(OrderIdGenerator.generateOrderId(), username, customerName, itemName, quantity);
+        Order order = new Order(
+                OrderIdGenerator.generateOrderId(),
+                username,
+                customerName,
+                customerAddress,
+                restaurantName,
+                itemName,
+                price,
+                quantity
+        );
         orders.add(order);
         persistOrders();
         startDeliverySimulation(order);
@@ -48,6 +69,10 @@ public class OrderService implements OrderOperations {
                 .findFirst();
     }
 
+    public synchronized Optional<Order> findAnyOrderById(String orderId) {
+        return orders.stream().filter(order -> order.getOrderId().equalsIgnoreCase(orderId)).findFirst();
+    }
+
     @Override
     public synchronized List<Order> getOrderHistory(String username) {
         return orders.stream()
@@ -57,6 +82,36 @@ public class OrderService implements OrderOperations {
                 .collect(Collectors.toList());
     }
 
+    public synchronized List<Order> getAllOrders() {
+        return orders.stream()
+                .sorted(Comparator.comparing(Order::getOrderTime).reversed())
+                .collect(Collectors.toList());
+    }
+
+    public synchronized List<Order> getOrdersByCustomerFilter(String filter) {
+        String normalized = filter == null ? "" : filter.trim().toLowerCase(Locale.ROOT);
+        return orders.stream()
+                .filter(order -> normalized.isEmpty() || order.getCustomerName().toLowerCase(Locale.ROOT).contains(normalized))
+                .sorted(Comparator.comparing(Order::getOrderTime).reversed())
+                .collect(Collectors.toList());
+    }
+
+    public synchronized boolean markOrderAsDeliveredByDeliveryPerson(String orderId) {
+        Optional<Order> orderOpt = findAnyOrderById(orderId);
+        if (orderOpt.isEmpty()) {
+            return false;
+        }
+
+        Order order = orderOpt.get();
+        if (order.getStatus() != OrderStatus.AWAITING_CUSTOMER_VERIFICATION) {
+            return false;
+        }
+
+        order.setDeliveredByDeliveryPerson(true);
+        order.setStatus(OrderStatus.DELIVERED);
+        persistOrders();
+        return true;
+    }
 
     public synchronized boolean markOrderAsDelivered(String username, String orderId) {
         Optional<Order> orderOpt = findOrderById(username, orderId);
@@ -93,8 +148,10 @@ public class OrderService implements OrderOperations {
         Thread.sleep(delayMs);
 
         synchronized (this) {
-            order.setStatus(status);
-            persistOrders();
+            if (order.getStatus() != OrderStatus.DELIVERED) {
+                order.setStatus(status);
+                persistOrders();
+            }
         }
     }
 
