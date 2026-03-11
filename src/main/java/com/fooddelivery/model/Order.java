@@ -1,48 +1,22 @@
 package com.fooddelivery.model;
 
-import jakarta.persistence.*;
-
 import java.time.LocalDateTime;
 
-@Entity
-@Table(name = "orders")
 public class Order {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
-    @Column(unique = true, nullable = false)
-    private String orderId;
-
-    @ManyToOne(optional = false)
-    private User customer;
-
-    @ManyToOne(optional = false)
-    private Restaurant restaurant;
-
-    @ManyToOne(optional = false)
-    private MenuItem menuItem;
-
-    @Column(nullable = false)
-    private int quantity;
-
-    @Column(nullable = false)
-    private double itemPrice;
-
-    @Column(nullable = false)
-    private String deliveryAddress;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    private final Long id;
+    private final String orderId;
+    private final User customer;
+    private final Restaurant restaurant;
+    private final MenuItem menuItem;
+    private final int quantity;
+    private final double itemPrice;
+    private final String deliveryAddress;
     private OrderStatus status;
+    private final LocalDateTime createdAt;
 
-    @Column(nullable = false)
-    private LocalDateTime createdAt;
-
-    public Order() {}
-
-    public Order(String orderId, User customer, Restaurant restaurant, MenuItem menuItem,
-                     int quantity, double itemPrice, String deliveryAddress, OrderStatus status) {
+    public Order(Long id, String orderId, User customer, Restaurant restaurant, MenuItem menuItem,
+                 int quantity, double itemPrice, String deliveryAddress, OrderStatus status) {
+        this.id = id;
         this.orderId = orderId;
         this.customer = customer;
         this.restaurant = restaurant;
@@ -65,5 +39,12 @@ public class Order {
     public OrderStatus getStatus() { return status; }
     public LocalDateTime getCreatedAt() { return createdAt; }
 
-    public void setStatus(OrderStatus status) { this.status = status; }
+    public void setStatus(OrderStatus status) {
+        this.status = status;
+    }
+
+    @Override
+    public String toString() {
+        return orderId + " (" + customer.getUsername() + " - " + status + ")";
+    }
 }

@@ -1,71 +1,45 @@
-# Online Food Delivery Tracker (Spring Boot + Vaadin)
+# Online Food Delivery Tracker (Plain Java Console)
 
-This project now runs as a **browser-based localhost application** using **Spring Boot + Vaadin Flow** (no Swing/JFrame desktop popup).
+This project runs as a **plain Java console application**.
+It does **not** use Spring Boot, Vaadin, or localhost web hosting.
 
-## Main requirements implemented
+## Why localhost was failing
 
-- Role-based login page with:
-  - username
-  - password
-  - role dropdown (`CUSTOMER`, `RESTAURANT_OWNER`, `DELIVERY_PERSON`)
-  - login button
-- Separate dashboards by role:
-  - Customer
-  - Restaurant Owner
-  - Delivery Person
-- Persistent storage using H2 file database (`./data/fooddb*`), so orders remain after restart.
-- Customer can place orders with restaurant dropdown, item dropdown, auto price, quantity, and address.
-- Customer can view only their own order history.
-- Restaurant owner sees only their own restaurant orders and can search by customer name/order ID.
-- Delivery person sees delivery-relevant orders and can mark delivered.
+Your previous merge switched to a web app approach. If that server was not running, `localhost` would refuse the connection. This version removes the web server completely.
 
 ## Tech stack
 
 - Java 17
-- Spring Boot 3
-- Vaadin Flow 24
-- Spring Data JPA
-- H2 file database (persistent)
+- Maven (build tool)
+- In-memory repositories (no DB server required)
 
 ## Main class to run
 
 `com.fooddelivery.app.OnlineFoodDeliveryTrackerApplication`
 
-## Localhost URL
-
-`http://localhost:8080`
-
 ## Run steps
 
-1. Build:
+1. Compile:
 
 ```bash
-mvn clean package
+mvn clean compile
 ```
 
-2. Run app:
+2. Run:
 
 ```bash
-mvn spring-boot:run
+mvn exec:java -Dexec.mainClass=com.fooddelivery.app.OnlineFoodDeliveryTrackerApplication
 ```
 
-3. Open browser:
-
-```text
-http://localhost:8080
-```
-
-## Demo seeded users
+## Demo users
 
 - Customer: `customer1 / pass`
 - Restaurant Owner: `owner_spice / pass` or `owner_pizza / pass`
 - Delivery Person: `delivery1 / pass`
 
-## Data model
+## Features
 
-- `User`
-- `Role` enum (`CUSTOMER`, `RESTAURANT_OWNER`, `DELIVERY_PERSON`)
-- `Restaurant`
-- `MenuItem`
-- `Order` (order entity)
-- `OrderStatus` enum (`PLACED`, `PREPARING`, `READY_FOR_PICKUP`, `OUT_FOR_DELIVERY`, `DELIVERED`)
+- Role-based login
+- Customer can place orders and view order history
+- Restaurant owner can view/search own restaurant orders and update status
+- Delivery person can view delivery orders and mark status updates

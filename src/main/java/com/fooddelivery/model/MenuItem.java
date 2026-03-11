@@ -1,34 +1,33 @@
 package com.fooddelivery.model;
 
-import jakarta.persistence.*;
-
-@Entity
 public class MenuItem {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private final Long id;
+    private final String name;
+    private final double price;
+    private final Restaurant restaurant;
 
-    @Column(nullable = false)
-    private String name;
-
-    @Column(nullable = false)
-    private double price;
-
-    @ManyToOne(optional = false)
-    private Restaurant restaurant;
-
-    public MenuItem() {}
-
-    public MenuItem(String name, double price, Restaurant restaurant) {
+    public MenuItem(Long id, String name, double price, Restaurant restaurant) {
+        this.id = id;
         this.name = name;
         this.price = price;
         this.restaurant = restaurant;
     }
 
-    public Long getId() { return id; }
-    public String getName() { return name; }
-    public double getPrice() { return price; }
-    public Restaurant getRestaurant() { return restaurant; }
+    public Long getId() {
+        return id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public double getPrice() {
+        return price;
+    }
+
+    public Restaurant getRestaurant() {
+        return restaurant;
+    }
 
     @Override
     public String toString() {
