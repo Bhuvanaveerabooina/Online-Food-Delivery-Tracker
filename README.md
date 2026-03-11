@@ -1,19 +1,25 @@
 # Online Food Delivery Tracker (Java Real-Time Web App)
 
-A beginner-friendly **real-time web application** to manage online food delivery orders with **login** and **persistent order history**.
+A beginner-friendly **localhost web application** to manage online food delivery orders with **role-based login** and **persistent order history**.
 
 ## Features
 
-1. **User Login & Registration**
-   - Create account and login from browser
+1. **Role-based Login & Registration**
+   - Create account and choose role from dropdown: `CUSTOMER`, `RESTAURANT_OWNER`, `DELIVERY_PERSON`
    - Users are stored on disk and available after app restart
-2. **Place Order**
-   - Enter customer name, food item, and quantity
-   - Generates a unique order ID
-3. **Real-Time Tracking**
-   - Background status progression: `PLACED → PREPARING → OUT_FOR_DELIVERY → DELIVERED`
+2. **Customer Portal**
+   - Place order with customer name, address, restaurant, item, item price, quantity
+   - See own order history and status updates
+3. **Restaurant Owner Portal**
+   - See full order status dashboard
+   - Filter order list by customer name
+4. **Delivery Person Portal**
+   - View all order details including customer address
+   - Mark order as delivered using order ID
+5. **Real-Time Tracking**
+   - Background status progression: `PLACED → PREPARING → OUT_FOR_DELIVERY → AWAITING_CUSTOMER_VERIFICATION`
    - Browser history table auto-refreshes every 2 seconds
-4. **Order History Persistence**
+6. **Order History Persistence**
    - Orders are saved to local files and loaded at startup
    - History remains available even after closing the app
 
@@ -34,7 +40,8 @@ src/com/fooddelivery/
 ├── model/
 │   ├── Order.java
 │   ├── OrderStatus.java
-│   └── UserAccount.java
+│   ├── UserAccount.java
+│   └── UserRole.java
 ├── service/
 │   ├── AuthService.java
 │   ├── OrderFileStore.java
