@@ -1,74 +1,71 @@
-# Online Food Delivery Tracker (Java Real-Time Web App)
+# Online Food Delivery Tracker (Spring Boot + Vaadin)
 
-A beginner-friendly **localhost web application** to manage online food delivery orders with **role-based login** and **persistent order history**.
+This project now runs as a **browser-based localhost application** using **Spring Boot + Vaadin Flow** (no Swing/JFrame desktop popup).
 
-## Features
+## Main requirements implemented
 
-1. **Role-based Login & Registration**
-   - Create account and choose role from dropdown: `CUSTOMER`, `RESTAURANT_OWNER`, `DELIVERY_PERSON`
-   - Users are stored on disk and available after app restart
-2. **Customer Portal**
-   - Place order with customer name, address, restaurant, item, item price, quantity
-   - See own order history and status updates
-3. **Restaurant Owner Portal**
-   - See full order status dashboard
-   - Filter order list by customer name
-4. **Delivery Person Portal**
-   - View all order details including customer address
-   - Mark order as delivered using order ID
-5. **Real-Time Tracking**
-   - Background status progression: `PLACED → PREPARING → OUT_FOR_DELIVERY → AWAITING_CUSTOMER_VERIFICATION`
-   - Browser history table auto-refreshes every 2 seconds
-6. **Order History Persistence**
-   - Orders are saved to local files and loaded at startup
-   - History remains available even after closing the app
+- Role-based login page with:
+  - username
+  - password
+  - role dropdown (`CUSTOMER`, `RESTAURANT_OWNER`, `DELIVERY_PERSON`)
+  - login button
+- Separate dashboards by role:
+  - Customer
+  - Restaurant Owner
+  - Delivery Person
+- Persistent storage using H2 file database (`./data/fooddb*`), so orders remain after restart.
+- Customer can place orders with restaurant dropdown, item dropdown, auto price, quantity, and address.
+- Customer can view only their own order history.
+- Restaurant owner sees only their own restaurant orders and can search by customer name/order ID.
+- Delivery person sees delivery-relevant orders and can mark delivered.
 
-## Tech Used
+## Tech stack
 
-- Java (`com.sun.net.httpserver.HttpServer`) for backend
-- Simple HTML/CSS/JavaScript frontend (served by Java)
-- OOP + service layer design
-- Java Serialization for persistent storage
-- Basic multithreading for status simulation
+- Java 17
+- Spring Boot 3
+- Vaadin Flow 24
+- Spring Data JPA
+- H2 file database (persistent)
 
-## Project Structure
+## Main class to run
 
-```text
-src/com/fooddelivery/
-├── app/
-│   └── OnlineFoodDeliveryTracker.java
-├── model/
-│   ├── Order.java
-│   ├── OrderStatus.java
-│   ├── UserAccount.java
-│   └── UserRole.java
-├── service/
-│   ├── AuthService.java
-│   ├── OrderFileStore.java
-│   ├── OrderOperations.java
-│   ├── OrderService.java
-│   └── UserFileStore.java
-└── util/
-    └── OrderIdGenerator.java
-```
+`com.fooddelivery.app.OnlineFoodDeliveryTrackerApplication`
 
-## How to Compile and Run
+## Localhost URL
 
-From project root:
+`http://localhost:8080`
+
+## Run steps
+
+1. Build:
 
 ```bash
-mkdir -p out
-javac -d out $(find src -name "*.java")
-java -cp out com.fooddelivery.app.OnlineFoodDeliveryTracker
+mvn clean package
 ```
 
-Then open:
+2. Run app:
 
-- `http://localhost:8080`
+```bash
+mvn spring-boot:run
+```
 
-## Data Files
+3. Open browser:
 
-Stored in your home directory:
+```text
+http://localhost:8080
+```
 
-- `~/.online-food-delivery-tracker/orders-data.ser`
-- `~/.online-food-delivery-tracker/users-data.ser`
+## Demo seeded users
+
+- Customer: `customer1 / pass`
+- Restaurant Owner: `owner_spice / pass` or `owner_pizza / pass`
+- Delivery Person: `delivery1 / pass`
+
+## Data model
+
+- `User`
+- `Role` enum (`CUSTOMER`, `RESTAURANT_OWNER`, `DELIVERY_PERSON`)
+- `Restaurant`
+- `MenuItem`
+- `Order` (order entity)
+- `OrderStatus` enum (`PLACED`, `PREPARING`, `READY_FOR_PICKUP`, `OUT_FOR_DELIVERY`, `DELIVERED`)
