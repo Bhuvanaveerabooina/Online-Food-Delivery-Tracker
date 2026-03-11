@@ -1,11 +1,9 @@
 package com.fooddelivery.model;
 
-public enum OrderStatus {
-    PLACED,
-    PREPARING,
-    READY_FOR_PICKUP,
-    OUT_FOR_DELIVERY,
-    DELIVERED;
+public enum Role {
+    CUSTOMER,
+    RESTAURANT_OWNER,
+    DELIVERY_PERSON;
 
     public String getDisplayName() {
         return name().replace('_', ' ');

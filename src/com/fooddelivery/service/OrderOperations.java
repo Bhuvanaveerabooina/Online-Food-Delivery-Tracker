@@ -1,19 +1,25 @@
 package com.fooddelivery.service;
 
 import com.fooddelivery.model.Order;
+import com.fooddelivery.model.OrderStatus;
 
 import java.util.List;
-import java.util.Optional;
 
-/**
- * Abstraction for order operations.
- */
 public interface OrderOperations {
-    Order placeOrder(String username, String customerName, String itemName, int quantity);
+    Order placeOrder(String customerUsername, String customerName, String restaurantName, String itemName,
+                     double itemPrice, int quantity, String address);
 
-    Optional<Order> findOrderById(String username, String orderId);
+    List<Order> getOrdersForCustomer(String customerUsername);
 
-    List<Order> getOrderHistory(String username);
+    List<Order> getOrdersForRestaurant(String restaurantName);
 
-    boolean markOrderAsDelivered(String username, String orderId);
+    List<Order> searchOrdersForRestaurant(String restaurantName, String query);
+
+    List<Order> getOrdersForDeliveryPerson(String deliveryUsername);
+
+    boolean updateRestaurantOrderStatus(String restaurantName, String orderId, OrderStatus newStatus);
+
+    boolean markOutForDelivery(String deliveryUsername, String orderId);
+
+    boolean markDelivered(String deliveryUsername, String orderId);
 }

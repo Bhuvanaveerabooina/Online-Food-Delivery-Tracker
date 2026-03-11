@@ -7,10 +7,14 @@ public class UserAccount implements Serializable {
 
     private final String username;
     private final String passwordHash;
+    private final Role role;
+    private final String restaurantName;
 
-    public UserAccount(String username, String passwordHash) {
+    public UserAccount(String username, String passwordHash, Role role, String restaurantName) {
         this.username = username;
         this.passwordHash = passwordHash;
+        this.role = role;
+        this.restaurantName = restaurantName;
     }
 
     public String getUsername() {
@@ -19,5 +23,13 @@ public class UserAccount implements Serializable {
 
     public String getPasswordHash() {
         return passwordHash;
+    }
+
+    public Role getRole() {
+        return role;
+    }
+
+    public String getRestaurantName() {
+        return restaurantName;
     }
 }

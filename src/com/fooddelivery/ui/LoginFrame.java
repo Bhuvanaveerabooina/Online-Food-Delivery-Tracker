@@ -1,57 +1,50 @@
 package com.fooddelivery.ui;
 
+import com.fooddelivery.model.Role;
+import com.fooddelivery.model.UserAccount;
 import com.fooddelivery.service.AuthService;
 import com.fooddelivery.service.OrderService;
+import com.fooddelivery.service.RestaurantService;
 
 import javax.swing.BorderFactory;
-import javax.swing.BoxLayout;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
 import javax.swing.JTextField;
-import javax.swing.SwingConstants;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
-import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.util.Optional;
 
 public class LoginFrame extends JFrame {
     private final AuthService authService;
     private final OrderService orderService;
+    private final RestaurantService restaurantService;
 
     private final JTextField usernameField = new JTextField(18);
     private final JPasswordField passwordField = new JPasswordField(18);
+    private final JComboBox<Role> roleCombo = new JComboBox<>(Role.values());
 
-    public LoginFrame(AuthService authService, OrderService orderService) {
+    public LoginFrame(AuthService authService, OrderService orderService, RestaurantService restaurantService) {
         this.authService = authService;
         this.orderService = orderService;
+        this.restaurantService = restaurantService;
 
-        setTitle("Online Food Delivery Tracker - Login");
+        setTitle("Online Food Delivery Tracker - Role Based Login");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(new Dimension(460, 320));
+        setSize(new Dimension(460, 300));
         setLocationRelativeTo(null);
-        setLayout(new BorderLayout(12, 12));
-
-        JLabel heading = new JLabel("Online Food Delivery Tracker", SwingConstants.CENTER);
-        heading.setFont(new Font("SansSerif", Font.BOLD, 20));
-        heading.setBorder(BorderFactory.createEmptyBorder(18, 12, 2, 12));
-
-        JLabel subHeading = new JLabel("Mini Project Login", SwingConstants.CENTER);
-        subHeading.setBorder(BorderFactory.createEmptyBorder(0, 12, 10, 12));
-
-        JPanel topPanel = new JPanel(new BorderLayout());
-        topPanel.add(heading, BorderLayout.CENTER);
-        topPanel.add(subHeading, BorderLayout.SOUTH);
 
         JPanel formPanel = new JPanel(new GridBagLayout());
         formPanel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createEmptyBorder(5, 20, 5, 20),
-                BorderFactory.createTitledBorder("Enter Credentials")
+                BorderFactory.createEmptyBorder(10, 15, 10, 15),
+                BorderFactory.createTitledBorder("Login")
         ));
 
         GridBagConstraints gbc = new GridBagConstraints();
@@ -61,57 +54,51 @@ public class LoginFrame extends JFrame {
         gbc.gridx = 0;
         gbc.gridy = 0;
         formPanel.add(new JLabel("Username:"), gbc);
-
         gbc.gridx = 1;
         formPanel.add(usernameField, gbc);
 
         gbc.gridx = 0;
         gbc.gridy = 1;
         formPanel.add(new JLabel("Password:"), gbc);
-
         gbc.gridx = 1;
         formPanel.add(passwordField, gbc);
 
+        gbc.gridx = 0;
+        gbc.gridy = 2;
+        formPanel.add(new JLabel("Role:"), gbc);
+        gbc.gridx = 1;
+        formPanel.add(roleCombo, gbc);
+
         JButton loginButton = new JButton("Login");
         loginButton.addActionListener(e -> doLogin());
+        gbc.gridx = 1;
+        gbc.gridy = 3;
+        formPanel.add(loginButton, gbc);
 
-        JButton resetButton = new JButton("Reset");
-        resetButton.addActionListener(e -> {
-            usernameField.setText("");
-            passwordField.setText("");
-        });
+        JLabel infoLabel = new JLabel("Demo: customer1/cust123, owner_spice/owner123, delivery1/del123");
+        infoLabel.setBorder(BorderFactory.createEmptyBorder(0, 10, 10, 10));
 
-        JPanel buttonPanel = new JPanel();
-        buttonPanel.add(loginButton);
-        buttonPanel.add(resetButton);
-
-        JLabel defaultInfo = new JLabel(
-                "Demo user: " + AuthService.DEFAULT_USERNAME + " / " + AuthService.DEFAULT_PASSWORD,
-                SwingConstants.CENTER
-        );
-        defaultInfo.setBorder(BorderFactory.createEmptyBorder(4, 8, 12, 8));
-
-        JPanel southPanel = new JPanel();
-        southPanel.setLayout(new BoxLayout(southPanel, BoxLayout.Y_AXIS));
-        southPanel.add(buttonPanel);
-        southPanel.add(defaultInfo);
-
-        add(topPanel, BorderLayout.NORTH);
         add(formPanel, BorderLayout.CENTER);
-        add(southPanel, BorderLayout.SOUTH);
+        add(infoLabel, BorderLayout.SOUTH);
     }
 
     private void doLogin() {
         String username = usernameField.getText().trim();
         String password = new String(passwordField.getPassword());
+        Role selectedRole = (Role) roleCombo.getSelectedItem();
 
-        boolean success = authService.authenticate(username, password);
-        if (!success) {
-            JOptionPane.showMessageDialog(this, "Invalid username or password.", "Login Failed", JOptionPane.ERROR_MESSAGE);
+        if (username.isEmpty() || password.isEmpty() || selectedRole == null) {
+            JOptionPane.showMessageDialog(this, "All fields are required.", "Validation", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        Optional<UserAccount> user = authService.authenticate(username, password, selectedRole);
+        if (!user.isPresent()) {
+            JOptionPane.showMessageDialog(this, "Invalid username, password, or role.", "Login Failed", JOptionPane.ERROR_MESSAGE);
             return;
         }
 
         dispose();
-        new MainFrame(username, authService, orderService).setVisible(true);
+        new DashboardFrame(user.get(), authService, orderService, restaurantService).setVisible(true);
     }
 }
