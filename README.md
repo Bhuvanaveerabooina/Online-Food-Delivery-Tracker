@@ -1,17 +1,18 @@
-# Online Food Delivery Tracker (Plain Java Console)
+# Online Food Delivery Tracker (Localhost Web Login)
 
-This project runs as a **plain Java console application**.
-It does **not** use Spring Boot, Vaadin, or localhost web hosting.
+This project now runs a lightweight **localhost web application** using Java's built-in HTTP server.
+It provides a **single page** with different login options and requirements for:
 
-## Why localhost was failing
-
-Your previous merge switched to a web app approach. If that server was not running, `localhost` would refuse the connection. This version removes the web server completely.
+- Customer
+- Restaurant Owner
+- Delivery Person
 
 ## Tech stack
 
 - Java 17
-- Maven (build tool)
-- In-memory repositories (no DB server required)
+- Maven
+- Java built-in `HttpServer` (`com.sun.net.httpserver.HttpServer`)
+- In-memory repositories (no DB required)
 
 ## Main class to run
 
@@ -31,15 +32,19 @@ mvn clean compile
 mvn exec:java -Dexec.mainClass=com.fooddelivery.app.OnlineFoodDeliveryTrackerApplication
 ```
 
-## Demo users
+3. Open in browser:
 
-- Customer: `customer1 / pass`
-- Restaurant Owner: `owner_spice / pass` or `owner_pizza / pass`
-- Delivery Person: `delivery1 / pass`
+```text
+http://localhost:8080
+```
 
-## Features
+## Demo users and role requirements
 
-- Role-based login
-- Customer can place orders and view order history
-- Restaurant owner can view/search own restaurant orders and update status
-- Delivery person can view delivery orders and mark status updates
+- **Customer**: `customer1 / pass`
+  - Choose role: `CUSTOMER`
+- **Restaurant Owner**: `owner_spice / pass` or `owner_pizza / pass`
+  - Choose role: `RESTAURANT_OWNER`
+- **Delivery Person**: `delivery1 / pass`
+  - Choose role: `DELIVERY_PERSON`
+
+If credentials are correct but role is wrong, login is rejected.
