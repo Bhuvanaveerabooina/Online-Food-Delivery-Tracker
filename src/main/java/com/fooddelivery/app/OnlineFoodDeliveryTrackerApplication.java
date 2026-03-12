@@ -127,9 +127,8 @@ public class OnlineFoodDeliveryTrackerApplication {
     private String buildPage(String message, boolean success) {
         String statusBlock = "";
         if (message != null) {
-            String color = success ? "#14532d" : "#7f1d1d";
-            String bg = success ? "#dcfce7" : "#fee2e2";
-            statusBlock = "<p style='padding:10px;border-radius:8px;color:" + color + ";background:" + bg + ";'>" + message + "</p>";
+            String statusClass = success ? "status success" : "status error";
+            statusBlock = "<p class='" + statusClass + "'>" + message + "</p>";
         }
 
         return """
@@ -139,56 +138,126 @@ public class OnlineFoodDeliveryTrackerApplication {
                   <meta charset='UTF-8'>
                   <title>Online Food Delivery Tracker</title>
                   <style>
-                    body { font-family: Arial, sans-serif; background: #f5f7fb; margin: 0; }
-                    .container { max-width: 900px; margin: 40px auto; background: white; border-radius: 12px; padding: 24px; box-shadow: 0 6px 20px rgba(0,0,0,0.08); }
-                    h1 { margin-top: 0; }
-                    .roles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-                    .card { border: 1px solid #dbe3f4; border-radius: 10px; padding: 12px; background: #fbfdff; }
-                    label { display: block; margin-top: 10px; font-weight: bold; }
-                    input, select { width: 100%; box-sizing: border-box; padding: 8px; margin-top: 4px; }
-                    button { margin-top: 14px; padding: 10px 16px; background: #1d4ed8; color: white; border: 0; border-radius: 8px; cursor: pointer; }
-                    small { color: #475569; }
+                    * { box-sizing: border-box; }
+                    body {
+                      margin: 0;
+                      font-family: 'Segoe UI', Arial, sans-serif;
+                      min-height: 100vh;
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                      background: radial-gradient(circle at top, #0f172a 0%, #1e293b 40%, #334155 100%);
+                      color: #0f172a;
+                    }
+                    .container {
+                      width: min(880px, 94vw);
+                      border-radius: 20px;
+                      padding: 26px;
+                      background: rgba(255, 255, 255, 0.95);
+                      box-shadow: 0 20px 50px rgba(2, 6, 23, 0.35);
+                    }
+                    .header { margin-bottom: 18px; }
+                    .badge {
+                      display: inline-block;
+                      background: #dbeafe;
+                      color: #1d4ed8;
+                      border-radius: 999px;
+                      padding: 6px 10px;
+                      font-size: 12px;
+                      font-weight: 700;
+                      margin-bottom: 8px;
+                    }
+                    h1 { margin: 0; font-size: 34px; }
+                    .sub { margin: 8px 0 0; color: #334155; }
+                    .layout { display: grid; grid-template-columns: 1.1fr 1fr; gap: 20px; }
+                    .info, .login-card {
+                      border: 1px solid #dbe3f4;
+                      border-radius: 14px;
+                      padding: 18px;
+                      background: #ffffff;
+                    }
+                    .role { padding: 10px 0; border-bottom: 1px solid #e2e8f0; }
+                    .role:last-child { border-bottom: 0; }
+                    .role h3 { margin: 0 0 4px; font-size: 16px; }
+                    .role p { margin: 0 0 4px; color: #475569; font-size: 14px; }
+                    .demo { font-size: 13px; color: #0f172a; }
+                    label { display: block; margin-top: 12px; font-weight: 700; font-size: 14px; }
+                    input, select {
+                      width: 100%;
+                      padding: 11px 12px;
+                      margin-top: 6px;
+                      border: 1px solid #cbd5e1;
+                      border-radius: 10px;
+                      font-size: 14px;
+                    }
+                    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+                    button {
+                      padding: 12px;
+                      border-radius: 10px;
+                      border: 0;
+                      font-size: 15px;
+                      cursor: pointer;
+                    }
+                    .login-btn { background: #2563eb; color: white; font-weight: 700; }
+                    .register-btn { background: #e2e8f0; color: #0f172a; font-weight: 600; }
+                    .status { margin: 0 0 14px; padding: 12px; border-radius: 10px; font-weight: 600; }
+                    .success { background: #dcfce7; color: #14532d; }
+                    .error { background: #fee2e2; color: #7f1d1d; }
+                    @media (max-width: 760px) {
+                      .layout { grid-template-columns: 1fr; }
+                      h1 { font-size: 28px; }
+                    }
                   </style>
                 </head>
                 <body>
                   <div class='container'>
-                    <h1>Online Food Delivery Tracker Login</h1>
-                    <p>Use one localhost page for all logins. Choose role, then enter matching credentials.</p>
-                    __STATUS__
-                    <div class='roles'>
-                      <div class='card'>
-                        <h3>Customer</h3>
-                        <small>Can place orders and check order history.</small><br>
-                        <strong>Demo:</strong> customer1 / pass
+                    <div class='header'>
+                      <span class='badge'>UPDATED WEB LOGIN</span>
+                      <h1>Food Delivery Tracker</h1>
+                      <p class='sub'>New split layout with clear role guidance and modern login controls.</p>
+                    </div>
+                    <div class='layout'>
+                      <div class='info'>
+                        <div class='role'>
+                          <h3>Customer</h3>
+                          <p>Place food orders and check your order history.</p>
+                          <div class='demo'>Demo: customer1 / pass</div>
+                        </div>
+                        <div class='role'>
+                          <h3>Restaurant Owner</h3>
+                          <p>Manage incoming orders for your restaurant.</p>
+                          <div class='demo'>Demo: owner_spice / pass or owner_pizza / pass</div>
+                        </div>
+                        <div class='role'>
+                          <h3>Delivery Person</h3>
+                          <p>Update delivery progress after pickup and drop.</p>
+                          <div class='demo'>Demo: delivery1 / pass</div>
+                        </div>
                       </div>
-                      <div class='card'>
-                        <h3>Restaurant Owner</h3>
-                        <small>Can manage own restaurant orders.</small><br>
-                        <strong>Demo:</strong> owner_spice / pass or owner_pizza / pass
-                      </div>
-                      <div class='card'>
-                        <h3>Delivery Person</h3>
-                        <small>Can update delivery status.</small><br>
-                        <strong>Demo:</strong> delivery1 / pass
+
+                      <div class='login-card'>
+                        __STATUS__
+                        <form method='post' action='/login'>
+                          <label>Role</label>
+                          <select name='role' required>
+                            <option value='CUSTOMER'>CUSTOMER</option>
+                            <option value='RESTAURANT_OWNER'>RESTAURANT_OWNER</option>
+                            <option value='DELIVERY_PERSON'>DELIVERY_PERSON</option>
+                          </select>
+
+                          <label>Username</label>
+                          <input type='text' name='username' required />
+
+                          <label>Password</label>
+                          <input type='password' name='password' required />
+
+                          <div class='actions'>
+                            <button class='login-btn' type='submit'>Login</button>
+                            <button class='register-btn' type='button'>Register</button>
+                          </div>
+                        </form>
                       </div>
                     </div>
-
-                    <form method='post' action='/login'>
-                      <label>Role</label>
-                      <select name='role' required>
-                        <option value='CUSTOMER'>CUSTOMER</option>
-                        <option value='RESTAURANT_OWNER'>RESTAURANT_OWNER</option>
-                        <option value='DELIVERY_PERSON'>DELIVERY_PERSON</option>
-                      </select>
-
-                      <label>Username</label>
-                      <input type='text' name='username' required />
-
-                      <label>Password</label>
-                      <input type='password' name='password' required />
-
-                      <button type='submit'>Login</button>
-                    </form>
                   </div>
                 </body>
                 </html>
