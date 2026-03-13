@@ -50,12 +50,9 @@ public class OnlineFoodDeliveryTrackerApplication {
             Order second = orderService.placeOrder(customer, spiceHub, vegBiryani, 1, "MG Road");
             Order third = orderService.placeOrder(customer, pizzaPoint, margheritaPizza, 3, "Whitefield");
 
-            first.setStatus(OrderStatus.DELIVERED);
-            second.setStatus(OrderStatus.OUT_FOR_DELIVERY);
-            third.setStatus(OrderStatus.PREPARING);
-            orderRepository.save(first);
-            orderRepository.save(second);
-            orderRepository.save(third);
+            orderService.updateStatus(first, OrderStatus.DELIVERED);
+            orderService.updateStatus(second, OrderStatus.OUT_FOR_DELIVERY);
+            orderService.updateStatus(third, OrderStatus.PREPARING);
         };
     }
 }
