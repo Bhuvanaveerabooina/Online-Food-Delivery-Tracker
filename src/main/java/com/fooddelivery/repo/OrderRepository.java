@@ -4,58 +4,15 @@ import com.fooddelivery.model.Order;
 import com.fooddelivery.model.OrderStatus;
 import com.fooddelivery.model.Restaurant;
 import com.fooddelivery.model.User;
+import org.springframework.data.jpa.repository.JpaRepository;
 
-import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicLong;
 
-public class OrderRepository {
-    private final List<Order> orders = new ArrayList<>();
-    private final AtomicLong idGen = new AtomicLong(1);
-
-    public Order save(Order order) {
-        if (order.getId() == null) {
-            Order fresh = new Order(
-                    idGen.getAndIncrement(),
-                    order.getOrderId(),
-                    order.getCustomer(),
-                    order.getRestaurant(),
-                    order.getMenuItem(),
-                    order.getQuantity(),
-                    order.getItemPrice(),
-                    order.getDeliveryAddress(),
-                    order.getStatus()
-            );
-            orders.add(fresh);
-            return fresh;
-        }
-        return order;
-    }
-
-    public List<Order> findByCustomerOrderByCreatedAtDesc(User customer) {
-        return orders.stream()
-                .filter(o -> o.getCustomer().getId().equals(customer.getId()))
-                .sorted(Comparator.comparing(Order::getCreatedAt).reversed())
-                .toList();
-    }
-
-    public List<Order> findByRestaurantOrderByCreatedAtDesc(Restaurant restaurant) {
-        return orders.stream()
-                .filter(o -> o.getRestaurant().getId().equals(restaurant.getId()))
-                .sorted(Comparator.comparing(Order::getCreatedAt).reversed())
-                .toList();
-    }
-
-    public List<Order> findByStatusInOrderByCreatedAtDesc(List<OrderStatus> statuses) {
-        return orders.stream()
-                .filter(o -> statuses.contains(o.getStatus()))
-                .sorted(Comparator.comparing(Order::getCreatedAt).reversed())
-                .toList();
-    }
-
-    public Optional<Order> findByOrderId(String orderId) {
-        return orders.stream().filter(o -> o.getOrderId().equalsIgnoreCase(orderId)).findFirst();
-    }
+public interface OrderRepository extends JpaRepository<Order, Long> {
+    List<Order> findByCustomerOrderByCreatedAtDesc(User customer);
+    List<Order> findByRestaurantOrderByCreatedAtDesc(Restaurant restaurant);
+    List<Order> findByStatusInOrderByCreatedAtDesc(Collection<OrderStatus> statuses);
+    Optional<Order> findByOrderId(String orderId);
 }

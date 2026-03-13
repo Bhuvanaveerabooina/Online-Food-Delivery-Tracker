@@ -1,11 +1,17 @@
 package com.fooddelivery.service;
 
-import com.fooddelivery.model.*;
+import com.fooddelivery.model.MenuItem;
+import com.fooddelivery.model.Order;
+import com.fooddelivery.model.OrderStatus;
+import com.fooddelivery.model.Restaurant;
+import com.fooddelivery.model.User;
 import com.fooddelivery.repo.OrderRepository;
+import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.UUID;
 
+@Service
 public class OrderService {
     private final OrderRepository orderRepository;
 
@@ -21,8 +27,7 @@ public class OrderService {
             throw new IllegalArgumentException("Delivery address is required");
         }
 
-        Order order = new Order(
-                null,
+        return orderRepository.save(new Order(
                 "ORD-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(),
                 customer,
                 restaurant,
@@ -31,8 +36,7 @@ public class OrderService {
                 menuItem.getPrice(),
                 address.trim(),
                 OrderStatus.PLACED
-        );
-        return orderRepository.save(order);
+        ));
     }
 
     public List<Order> customerOrders(User customer) {
@@ -51,6 +55,7 @@ public class OrderService {
 
     public void updateStatus(Order order, OrderStatus status) {
         order.setStatus(status);
+        orderRepository.save(order);
     }
 
     public Order byOrderId(String orderId) {

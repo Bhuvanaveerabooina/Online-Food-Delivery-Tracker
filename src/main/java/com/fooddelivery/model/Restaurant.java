@@ -1,11 +1,22 @@
 package com.fooddelivery.model;
 
-public class Restaurant {
-    private final Long id;
-    private final String name;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
 
-    public Restaurant(Long id, String name) {
-        this.id = id;
+@Entity
+public class Restaurant {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String name;
+
+    public Restaurant() {
+    }
+
+    public Restaurant(String name) {
         this.name = name;
     }
 
