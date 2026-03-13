@@ -16,6 +16,11 @@ public class Order {
 
     public Order(Long id, String orderId, User customer, Restaurant restaurant, MenuItem menuItem,
                  int quantity, double itemPrice, String deliveryAddress, OrderStatus status) {
+        this(id, orderId, customer, restaurant, menuItem, quantity, itemPrice, deliveryAddress, status, LocalDateTime.now());
+    }
+
+    public Order(Long id, String orderId, User customer, Restaurant restaurant, MenuItem menuItem,
+                 int quantity, double itemPrice, String deliveryAddress, OrderStatus status, LocalDateTime createdAt) {
         this.id = id;
         this.orderId = orderId;
         this.customer = customer;
@@ -25,7 +30,7 @@ public class Order {
         this.itemPrice = itemPrice;
         this.deliveryAddress = deliveryAddress;
         this.status = status;
-        this.createdAt = LocalDateTime.now();
+        this.createdAt = createdAt;
     }
 
     public Long getId() { return id; }

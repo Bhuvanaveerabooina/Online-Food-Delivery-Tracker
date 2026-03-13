@@ -4,6 +4,7 @@ import com.fooddelivery.model.Restaurant;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class RestaurantRepository {
@@ -22,5 +23,9 @@ public class RestaurantRepository {
 
     public long count() {
         return restaurants.size();
+    }
+
+    public Optional<Restaurant> findByName(String name) {
+        return restaurants.stream().filter(r -> r.getName().equals(name)).findFirst();
     }
 }

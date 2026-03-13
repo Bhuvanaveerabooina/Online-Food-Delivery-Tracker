@@ -19,11 +19,22 @@ public class UserRepository {
         return user;
     }
 
+    public User saveExisting(Long id, String username, String password, Role role, Restaurant restaurant) {
+        User user = new User(id, username, password, role, restaurant);
+        users.add(user);
+        idGen.updateAndGet(current -> Math.max(current, id + 1));
+        return user;
+    }
+
     public Optional<User> findByUsername(String username) {
         return users.stream().filter(u -> u.getUsername().equalsIgnoreCase(username)).findFirst();
     }
 
     public List<User> findAll() {
         return List.copyOf(users);
+    }
+
+    public long count() {
+        return users.size();
     }
 }

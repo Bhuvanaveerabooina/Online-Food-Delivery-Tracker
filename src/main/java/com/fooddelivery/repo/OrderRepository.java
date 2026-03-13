@@ -31,6 +31,16 @@ public class OrderRepository {
             orders.add(fresh);
             return fresh;
         }
+        if (orders.stream().noneMatch(existing -> existing.getId().equals(order.getId()))) {
+            orders.add(order);
+            idGen.updateAndGet(current -> Math.max(current, order.getId() + 1));
+        }
+        return order;
+    }
+
+    public Order saveExisting(Order order) {
+        orders.add(order);
+        idGen.updateAndGet(current -> Math.max(current, order.getId() + 1));
         return order;
     }
 
@@ -57,5 +67,9 @@ public class OrderRepository {
 
     public Optional<Order> findByOrderId(String orderId) {
         return orders.stream().filter(o -> o.getOrderId().equalsIgnoreCase(orderId)).findFirst();
+    }
+
+    public List<Order> findAll() {
+        return List.copyOf(orders);
     }
 }
