@@ -1,11 +1,17 @@
 package com.fooddelivery.app;
 
+import com.fooddelivery.model.MenuItem;
+import com.fooddelivery.model.Order;
+import com.fooddelivery.model.OrderStatus;
 import com.fooddelivery.model.Restaurant;
 import com.fooddelivery.model.Role;
+import com.fooddelivery.model.User;
 import com.fooddelivery.repo.MenuItemRepository;
+import com.fooddelivery.repo.OrderRepository;
 import com.fooddelivery.repo.RestaurantRepository;
 import com.fooddelivery.repo.UserRepository;
 import com.fooddelivery.service.AuthService;
+import com.fooddelivery.service.OrderService;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
@@ -14,14 +20,24 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 public class OnlineFoodDeliveryTrackerApplication {
+    private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm:ss");
+
     private final RestaurantRepository restaurantRepository = new RestaurantRepository();
     private final MenuItemRepository menuItemRepository = new MenuItemRepository();
     private final UserRepository userRepository = new UserRepository();
+    private final OrderRepository orderRepository = new OrderRepository();
     private final AuthService authService = new AuthService(userRepository);
+    private final OrderService orderService = new OrderService(orderRepository);
+
+    private final Map<String, User> sessions = new HashMap<>();
 
     public static void main(String[] args) throws IOException {
         new OnlineFoodDeliveryTrackerApplication().start();
@@ -33,6 +49,8 @@ public class OnlineFoodDeliveryTrackerApplication {
         HttpServer server = HttpServer.create(new InetSocketAddress(8080), 0);
         server.createContext("/", this::handleHome);
         server.createContext("/login", this::handleLogin);
+        server.createContext("/app", this::handleApp);
+        server.createContext("/logout", this::handleLogout);
         server.start();
 
         System.out.println("Online Food Delivery Tracker running at http://localhost:8080");
@@ -53,8 +71,13 @@ public class OnlineFoodDeliveryTrackerApplication {
             return;
         }
 
-        String html = buildPage(null, false);
-        sendHtml(exchange, html, 200);
+        User user = getAuthenticatedUser(exchange);
+        if (user != null) {
+            redirect(exchange, "/app");
+            return;
+        }
+
+        sendHtml(exchange, buildLoginPage(null), 200);
     }
 
     private void handleLogin(HttpExchange exchange) throws IOException {
@@ -71,16 +94,74 @@ public class OnlineFoodDeliveryTrackerApplication {
         String roleText = params.getOrDefault("role", "").trim();
 
         Role role = parseRole(roleText);
-        boolean success = role != null && authService.authenticate(username, password, role).isPresent();
+        var authenticated = role == null ? java.util.Optional.<User>empty() : authService.authenticate(username, password, role);
 
-        String message;
-        if (success) {
-            message = "Login successful for " + role + " user: " + username;
-        } else {
-            message = "Invalid login details. Check username, password, and role requirements.";
+        if (authenticated.isEmpty()) {
+            sendHtml(exchange, buildLoginPage("Invalid username, password, or role."), 401);
+            return;
         }
 
-        sendHtml(exchange, buildPage(message, success), success ? 200 : 401);
+        User user = authenticated.get();
+        String sessionId = UUID.randomUUID().toString();
+        sessions.put(sessionId, user);
+        exchange.getResponseHeaders().add("Set-Cookie", "SESSION_ID=" + sessionId + "; Path=/; HttpOnly");
+        redirect(exchange, "/app");
+    }
+
+    private void handleApp(HttpExchange exchange) throws IOException {
+        if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            sendMethodNotAllowed(exchange);
+            return;
+        }
+
+        User user = getAuthenticatedUser(exchange);
+        if (user == null) {
+            redirect(exchange, "/");
+            return;
+        }
+
+        sendHtml(exchange, buildDashboardPage(user), 200);
+    }
+
+    private void handleLogout(HttpExchange exchange) throws IOException {
+        if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            sendMethodNotAllowed(exchange);
+            return;
+        }
+
+        String sessionId = extractSessionId(exchange);
+        if (sessionId != null) {
+            sessions.remove(sessionId);
+        }
+        exchange.getResponseHeaders().add("Set-Cookie", "SESSION_ID=deleted; Path=/; Max-Age=0");
+        redirect(exchange, "/");
+    }
+
+    private User getAuthenticatedUser(HttpExchange exchange) {
+        String sessionId = extractSessionId(exchange);
+        return sessionId == null ? null : sessions.get(sessionId);
+    }
+
+    private String extractSessionId(HttpExchange exchange) {
+        String cookieHeader = exchange.getRequestHeaders().getFirst("Cookie");
+        if (cookieHeader == null || cookieHeader.isBlank()) {
+            return null;
+        }
+
+        String[] cookies = cookieHeader.split(";");
+        for (String cookie : cookies) {
+            String[] kv = cookie.trim().split("=", 2);
+            if (kv.length == 2 && "SESSION_ID".equals(kv[0])) {
+                return kv[1];
+            }
+        }
+        return null;
+    }
+
+    private void redirect(HttpExchange exchange, String location) throws IOException {
+        exchange.getResponseHeaders().set("Location", location);
+        exchange.sendResponseHeaders(302, -1);
+        exchange.close();
     }
 
     private Role parseRole(String role) {
@@ -96,6 +177,7 @@ public class OnlineFoodDeliveryTrackerApplication {
         if (formData == null || formData.isBlank()) {
             return result;
         }
+
         String[] pairs = formData.split("&");
         for (String pair : pairs) {
             String[] keyValue = pair.split("=", 2);
@@ -124,12 +206,24 @@ public class OnlineFoodDeliveryTrackerApplication {
         }
     }
 
-    private String buildPage(String message, boolean success) {
+    private String buildLoginPage(String errorMessage) {
         String statusBlock = "";
-        if (message != null) {
-            String statusClass = success ? "status success" : "status error";
-            statusBlock = "<p class='" + statusClass + "'>" + message + "</p>";
+        if (errorMessage != null) {
+            statusBlock = "<p class='status error'>" + errorMessage + "</p>";
         }
+
+        String roleOptions = """
+                <option value='CUSTOMER'>CUSTOMER</option>
+                <option value='RESTAURANT_OWNER'>RESTAURANT_OWNER</option>
+                <option value='DELIVERY_PERSON'>DELIVERY_PERSON</option>
+                """;
+
+        String userOptions = new StringBuilder()
+                .append("<option value=''>Select existing user</option>")
+                .append(userRepository.findAll().stream()
+                        .map(user -> "<option value='" + user.getUsername() + "'>" + user.getUsername() + " (" + user.getRole() + ")</option>")
+                        .reduce("", String::concat))
+                .toString();
 
         return """
                 <!doctype html>
@@ -138,130 +232,103 @@ public class OnlineFoodDeliveryTrackerApplication {
                   <meta charset='UTF-8'>
                   <title>Online Food Delivery Tracker</title>
                   <style>
-                    * { box-sizing: border-box; }
-                    body {
-                      margin: 0;
-                      font-family: 'Segoe UI', Arial, sans-serif;
-                      min-height: 100vh;
-                      display: flex;
-                      align-items: center;
-                      justify-content: center;
-                      background: radial-gradient(circle at top, #0f172a 0%, #1e293b 40%, #334155 100%);
-                      color: #0f172a;
-                    }
-                    .container {
-                      width: min(880px, 94vw);
-                      border-radius: 20px;
-                      padding: 26px;
-                      background: rgba(255, 255, 255, 0.95);
-                      box-shadow: 0 20px 50px rgba(2, 6, 23, 0.35);
-                    }
-                    .header { margin-bottom: 18px; }
-                    .badge {
-                      display: inline-block;
-                      background: #dbeafe;
-                      color: #1d4ed8;
-                      border-radius: 999px;
-                      padding: 6px 10px;
-                      font-size: 12px;
-                      font-weight: 700;
-                      margin-bottom: 8px;
-                    }
-                    h1 { margin: 0; font-size: 34px; }
-                    .sub { margin: 8px 0 0; color: #334155; }
-                    .layout { display: grid; grid-template-columns: 1.1fr 1fr; gap: 20px; }
-                    .info, .login-card {
-                      border: 1px solid #dbe3f4;
-                      border-radius: 14px;
-                      padding: 18px;
-                      background: #ffffff;
-                    }
-                    .role { padding: 10px 0; border-bottom: 1px solid #e2e8f0; }
-                    .role:last-child { border-bottom: 0; }
-                    .role h3 { margin: 0 0 4px; font-size: 16px; }
-                    .role p { margin: 0 0 4px; color: #475569; font-size: 14px; }
-                    .demo { font-size: 13px; color: #0f172a; }
-                    label { display: block; margin-top: 12px; font-weight: 700; font-size: 14px; }
-                    input, select {
-                      width: 100%;
-                      padding: 11px 12px;
-                      margin-top: 6px;
-                      border: 1px solid #cbd5e1;
-                      border-radius: 10px;
-                      font-size: 14px;
-                    }
-                    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
-                    button {
-                      padding: 12px;
-                      border-radius: 10px;
-                      border: 0;
-                      font-size: 15px;
-                      cursor: pointer;
-                    }
-                    .login-btn { background: #2563eb; color: white; font-weight: 700; }
-                    .register-btn { background: #e2e8f0; color: #0f172a; font-weight: 600; }
-                    .status { margin: 0 0 14px; padding: 12px; border-radius: 10px; font-weight: 600; }
-                    .success { background: #dcfce7; color: #14532d; }
-                    .error { background: #fee2e2; color: #7f1d1d; }
-                    @media (max-width: 760px) {
-                      .layout { grid-template-columns: 1fr; }
-                      h1 { font-size: 28px; }
-                    }
+                    body { margin: 0; font-family: Arial, sans-serif; background:#f3f4f6; }
+                    .card { width:min(520px, 92vw); margin: 60px auto; background:#fff; border:1px solid #d1d5db; padding:24px; }
+                    h1 { margin:0 0 18px; }
+                    label { display:block; margin-top:12px; font-weight:700; }
+                    input, select { width:100%; padding:10px; margin-top:6px; border:1px solid #9ca3af; }
+                    .status { margin: 0 0 12px; padding: 10px; font-weight: 700; }
+                    .error { background:#fee2e2; color:#991b1b; }
+                    .btn { margin-top:16px; width:100%; padding:11px; background:#111827; color:#fff; border:0; cursor:pointer; }
+                    .hint { margin-top: 12px; color:#374151; font-size:13px; }
                   </style>
                 </head>
                 <body>
-                  <div class='container'>
-                    <div class='header'>
-                      <span class='badge'>UPDATED WEB LOGIN</span>
-                      <h1>Food Delivery Tracker</h1>
-                      <p class='sub'>New split layout with clear role guidance and modern login controls.</p>
-                    </div>
-                    <div class='layout'>
-                      <div class='info'>
-                        <div class='role'>
-                          <h3>Customer</h3>
-                          <p>Place food orders and check your order history.</p>
-                          <div class='demo'>Demo: customer1 / pass</div>
-                        </div>
-                        <div class='role'>
-                          <h3>Restaurant Owner</h3>
-                          <p>Manage incoming orders for your restaurant.</p>
-                          <div class='demo'>Demo: owner_spice / pass or owner_pizza / pass</div>
-                        </div>
-                        <div class='role'>
-                          <h3>Delivery Person</h3>
-                          <p>Update delivery progress after pickup and drop.</p>
-                          <div class='demo'>Demo: delivery1 / pass</div>
-                        </div>
-                      </div>
+                  <div class='card'>
+                    <h1>Food Delivery Tracker Login</h1>
+                    __STATUS__
+                    <form method='post' action='/login'>
+                      <label>Role</label>
+                      <select name='role' required>
+                        __ROLE_OPTIONS__
+                      </select>
 
-                      <div class='login-card'>
-                        __STATUS__
-                        <form method='post' action='/login'>
-                          <label>Role</label>
-                          <select name='role' required>
-                            <option value='CUSTOMER'>CUSTOMER</option>
-                            <option value='RESTAURANT_OWNER'>RESTAURANT_OWNER</option>
-                            <option value='DELIVERY_PERSON'>DELIVERY_PERSON</option>
-                          </select>
+                      <label>User ID</label>
+                      <select name='username' required>
+                        __USER_OPTIONS__
+                      </select>
 
-                          <label>Username</label>
-                          <input type='text' name='username' required />
+                      <label>Password</label>
+                      <input type='password' name='password' required />
 
-                          <label>Password</label>
-                          <input type='password' name='password' required />
+                      <button class='btn' type='submit'>Login</button>
+                    </form>
+                    <div class='hint'>Login uses Java repository users and redirects to profile after successful authentication.</div>
+                  </div>
+                </body>
+                </html>
+                """
+                .replace("__STATUS__", statusBlock)
+                .replace("__ROLE_OPTIONS__", roleOptions)
+                .replace("__USER_OPTIONS__", userOptions);
+    }
 
-                          <div class='actions'>
-                            <button class='login-btn' type='submit'>Login</button>
-                            <button class='register-btn' type='button'>Register</button>
-                          </div>
-                        </form>
-                      </div>
+    private String buildDashboardPage(User user) {
+        List<Order> orders = new ArrayList<>(orderRepository.findByCustomerOrderByCreatedAtDesc(user));
+        if (orders.isEmpty()) {
+            orders = orderRepository.findByStatusInOrderByCreatedAtDesc(
+                    List.of(OrderStatus.PLACED, OrderStatus.PREPARING, OrderStatus.READY_FOR_PICKUP, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED)
+            );
+        }
+
+        String rows = orders.stream()
+                .map(order -> "<tr>"
+                        + "<td>" + order.getOrderId() + "</td>"
+                        + "<td>" + order.getCustomer().getUsername() + "</td>"
+                        + "<td>" + order.getMenuItem().getName() + "</td>"
+                        + "<td>" + order.getQuantity() + "</td>"
+                        + "<td>" + order.getStatus() + "</td>"
+                        + "<td>" + TIME_FORMAT.format(order.getCreatedAt()) + "</td>"
+                        + "</tr>")
+                .reduce("", String::concat);
+
+        return """
+                <!doctype html>
+                <html>
+                <head>
+                  <meta charset='UTF-8'>
+                  <title>Profile - Food Delivery Tracker</title>
+                  <style>
+                    body { margin:0; font-family:Arial, sans-serif; background:#f3f4f6; color:#111827; }
+                    .top { display:flex; justify-content:space-between; align-items:center; padding:20px 26px; background:#fff; border-bottom:1px solid #d1d5db; }
+                    .btn { padding:8px 14px; border:1px solid #111827; color:#111827; text-decoration:none; }
+                    .wrap { padding:24px; }
+                    .panel { background:#fff; border:1px solid #d1d5db; padding:18px; margin-bottom:16px; }
+                    table { width:100%; border-collapse:collapse; }
+                    th, td { border:1px solid #d1d5db; padding:10px; text-align:left; }
+                  </style>
+                </head>
+                <body>
+                  <div class='top'>
+                    <h1>Welcome, __USERNAME__</h1>
+                    <a class='btn' href='/logout'>Logout</a>
+                  </div>
+                  <div class='wrap'>
+                    <div class='panel'><strong>Role:</strong> __ROLE__</div>
+                    <div class='panel'>
+                      <h2>Order History</h2>
+                      <table>
+                        <tr><th>ID</th><th>Customer</th><th>Item</th><th>Qty</th><th>Status</th><th>Time</th></tr>
+                        __ROWS__
+                      </table>
                     </div>
                   </div>
                 </body>
                 </html>
-                """.replace("__STATUS__", statusBlock);
+                """
+                .replace("__USERNAME__", user.getUsername())
+                .replace("__ROLE__", user.getRole().name())
+                .replace("__ROWS__", rows);
     }
 
     private void seedData() {
@@ -272,14 +339,21 @@ public class OnlineFoodDeliveryTrackerApplication {
         Restaurant spiceHub = restaurantRepository.save("Spice Hub");
         Restaurant pizzaPoint = restaurantRepository.save("Pizza Point");
 
-        menuItemRepository.save("Paneer Bowl", 180.0, spiceHub);
-        menuItemRepository.save("Veg Biryani", 220.0, spiceHub);
-        menuItemRepository.save("Margherita Pizza", 250.0, pizzaPoint);
-        menuItemRepository.save("Farmhouse Pizza", 320.0, pizzaPoint);
+        MenuItem paneerBowl = menuItemRepository.save("Paneer Bowl", 180.0, spiceHub);
+        MenuItem vegBiryani = menuItemRepository.save("Veg Biryani", 220.0, spiceHub);
+        MenuItem margheritaPizza = menuItemRepository.save("Margherita Pizza", 250.0, pizzaPoint);
 
-        userRepository.save("customer1", "pass", Role.CUSTOMER, null);
+        User customer = userRepository.save("bhuvana", "pass", Role.CUSTOMER, null);
         userRepository.save("owner_spice", "pass", Role.RESTAURANT_OWNER, spiceHub);
         userRepository.save("owner_pizza", "pass", Role.RESTAURANT_OWNER, pizzaPoint);
         userRepository.save("delivery1", "pass", Role.DELIVERY_PERSON, null);
+
+        Order first = orderService.placeOrder(customer, spiceHub, paneerBowl, 2, "MG Road");
+        Order second = orderService.placeOrder(customer, spiceHub, vegBiryani, 1, "MG Road");
+        Order third = orderService.placeOrder(customer, pizzaPoint, margheritaPizza, 3, "Whitefield");
+
+        orderService.updateStatus(first, OrderStatus.DELIVERED);
+        orderService.updateStatus(second, OrderStatus.OUT_FOR_DELIVERY);
+        orderService.updateStatus(third, OrderStatus.PREPARING);
     }
 }
