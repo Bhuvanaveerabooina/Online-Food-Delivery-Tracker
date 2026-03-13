@@ -22,4 +22,8 @@ public class UserRepository {
     public Optional<User> findByUsername(String username) {
         return users.stream().filter(u -> u.getUsername().equalsIgnoreCase(username)).findFirst();
     }
+
+    public List<User> findAll() {
+        return List.copyOf(users);
+    }
 }
