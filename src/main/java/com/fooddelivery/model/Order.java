@@ -1,22 +1,48 @@
 package com.fooddelivery.model;
 
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
+
 import java.time.LocalDateTime;
 
+@Entity
 public class Order {
-    private final Long id;
-    private final String orderId;
-    private final User customer;
-    private final Restaurant restaurant;
-    private final MenuItem menuItem;
-    private final int quantity;
-    private final double itemPrice;
-    private final String deliveryAddress;
-    private OrderStatus status;
-    private final LocalDateTime createdAt;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-    public Order(Long id, String orderId, User customer, Restaurant restaurant, MenuItem menuItem,
-                 int quantity, double itemPrice, String deliveryAddress, OrderStatus status) {
-        this.id = id;
+    private String orderId;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    private User customer;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    private Restaurant restaurant;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    private MenuItem menuItem;
+
+    private int quantity;
+    private double itemPrice;
+    private String deliveryAddress;
+
+    @Enumerated(EnumType.STRING)
+    private OrderStatus status;
+
+    private LocalDateTime createdAt;
+
+    public Order() {
+    }
+
+    public Order(String orderId, User customer, Restaurant restaurant, MenuItem menuItem, int quantity,
+                 double itemPrice, String deliveryAddress, OrderStatus status) {
         this.orderId = orderId;
         this.customer = customer;
         this.restaurant = restaurant;
@@ -25,7 +51,13 @@ public class Order {
         this.itemPrice = itemPrice;
         this.deliveryAddress = deliveryAddress;
         this.status = status;
-        this.createdAt = LocalDateTime.now();
+    }
+
+    @PrePersist
+    public void prePersist() {
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
     }
 
     public Long getId() { return id; }
@@ -41,10 +73,5 @@ public class Order {
 
     public void setStatus(OrderStatus status) {
         this.status = status;
-    }
-
-    @Override
-    public String toString() {
-        return orderId + " (" + customer.getUsername() + " - " + status + ")";
     }
 }
