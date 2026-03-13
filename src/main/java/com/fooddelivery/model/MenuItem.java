@@ -1,13 +1,28 @@
 package com.fooddelivery.model;
 
-public class MenuItem {
-    private final Long id;
-    private final String name;
-    private final double price;
-    private final Restaurant restaurant;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.ManyToOne;
 
-    public MenuItem(Long id, String name, double price, Restaurant restaurant) {
-        this.id = id;
+@Entity
+public class MenuItem {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String name;
+    private double price;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    private Restaurant restaurant;
+
+    public MenuItem() {
+    }
+
+    public MenuItem(String name, double price, Restaurant restaurant) {
         this.name = name;
         this.price = price;
         this.restaurant = restaurant;

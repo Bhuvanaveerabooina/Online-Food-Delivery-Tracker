@@ -1,50 +1,64 @@
-# Online Food Delivery Tracker (Localhost Web Login)
+# Online Food Delivery Tracker (Spring Boot + Vaadin)
 
-This project now runs a lightweight **localhost web application** using Java's built-in HTTP server.
-It provides a **single page** with different login options and requirements for:
+This project now runs as a **localhost browser-based Java web app**.
+It uses **Spring Boot + Vaadin Flow** (not Swing/JFrame).
 
-- Customer
-- Restaurant Owner
-- Delivery Person
+## Main entry point
 
-## Tech stack
+- **Main class:** `com.fooddelivery.app.OnlineFoodDeliveryTrackerApplication`
 
-- Java 17
-- Maven
-- Java built-in `HttpServer` (`com.sun.net.httpserver.HttpServer`)
-- In-memory repositories (no DB required)
-
-## Main class to run
-
-`com.fooddelivery.app.OnlineFoodDeliveryTrackerApplication`
-
-## Run steps
-
-1. Compile:
+## Run command
 
 ```bash
-mvn clean compile
+mvn spring-boot:run
 ```
 
-2. Run:
+## Localhost URL
 
-```bash
-mvn exec:java -Dexec.mainClass=com.fooddelivery.app.OnlineFoodDeliveryTrackerApplication
-```
+- `http://localhost:8080`
 
-3. Open in browser:
+## Demo login credentials
 
-```text
-http://localhost:8080
-```
+Use role exactly as listed in the dropdown.
 
-## Demo users and role requirements
+- **CUSTOMER**
+  - username: `customer1`
+  - password: `pass`
+- **RESTAURANT_OWNER**
+  - username: `owner_spice`
+  - password: `pass`
+- **RESTAURANT_OWNER**
+  - username: `owner_pizza`
+  - password: `pass`
+- **DELIVERY_PERSON**
+  - username: `delivery1`
+  - password: `pass`
 
-- **Customer**: `customer1 / pass`
-  - Choose role: `CUSTOMER`
-- **Restaurant Owner**: `owner_spice / pass` or `owner_pizza / pass`
-  - Choose role: `RESTAURANT_OWNER`
-- **Delivery Person**: `delivery1 / pass`
-  - Choose role: `DELIVERY_PERSON`
+## Features implemented
 
-If credentials are correct but role is wrong, login is rejected.
+1. Login page (browser)
+   - username
+   - password
+   - role dropdown (`CUSTOMER`, `RESTAURANT_OWNER`, `DELIVERY_PERSON`)
+   - Login button
+   - Register button
+
+2. Registration
+   - creates new users
+   - validates duplicate usernames
+   - saves role correctly
+   - for `RESTAURANT_OWNER`, user must select a restaurant
+
+3. Role-based dashboards
+   - **Customer:** place order, select restaurant/item, auto item price, quantity, address, own history/status
+   - **Restaurant Owner:** view only own restaurant orders, filter by customer/order ID, update restaurant-side status
+   - **Delivery Person:** see delivery orders and mark delivered
+
+4. Persistence
+   - Uses file-based H2 DB at `./data/fooddb`
+   - users and orders remain after restart
+
+## Notes on old UI
+
+- Old placeholder Swing/desktop flow is no longer the active entry path.
+- Active app flow is Vaadin route-based web UI served by Spring Boot.
