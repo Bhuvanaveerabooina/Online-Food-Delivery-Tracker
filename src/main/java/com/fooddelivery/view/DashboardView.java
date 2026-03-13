@@ -25,10 +25,12 @@ import com.vaadin.flow.router.BeforeEnterEvent;
 import com.vaadin.flow.router.BeforeEnterObserver;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
+import com.vaadin.flow.router.RouteAlias;
 
 import java.util.List;
 
 @Route("dashboard")
+@RouteAlias("app")
 @PageTitle("Dashboard | Food Delivery Tracker")
 public class DashboardView extends VerticalLayout implements BeforeEnterObserver {
 
