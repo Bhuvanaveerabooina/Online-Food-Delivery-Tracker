@@ -19,7 +19,8 @@ A beginner-friendly **role-based food delivery tracker** with simple login, regi
    - Quantity + total price support
    - View own order history and check own order status
    <img width="1516" height="862" alt="image" src="https://github.com/user-attachments/assets/575a0c27-f140-4cbc-b0c8-20d74287b342" />
-   <img width="1472" height="813" alt="image" src="https://github.com/user-attachments/assets/e8aebb13-426a-4d45-8cc4-3a1d9e5baa94" />
+    <img width="1735" height="815" alt="image" src="https://github.com/user-attachments/assets/cf2830c6-b9b8-4fcf-8e48-ec26682cde66" />
+
 
 3. **Restaurant owner dashboard**
    - View only orders for owner restaurant
