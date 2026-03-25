@@ -30,7 +30,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Starts a web application for role-based food delivery tracking.
  */
 public class OnlineFoodDeliveryTracker {
-    private static final int PORT = 8080;
+    private static final int PORT = Integer.parseInt(System.getenv().getOrDefault("PORT", "8080"));
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm:ss");
 
     private final OrderService orderService = new OrderService();
@@ -44,6 +44,7 @@ public class OnlineFoodDeliveryTracker {
     private void start() throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress(PORT), 0);
         server.createContext("/", this::handleRoot);
+        server.createContext("/health", this::handleHealth);
         server.createContext("/login", exchange -> serveHtml(exchange, loginPage()));
         server.createContext("/app", this::handleApp);
 
@@ -73,6 +74,10 @@ public class OnlineFoodDeliveryTracker {
     private void handleRoot(HttpExchange exchange) throws IOException {
         UserAccount user = getLoggedInUser(exchange);
         redirect(exchange, user == null ? "/login" : "/app");
+    }
+
+    private void handleHealth(HttpExchange exchange) throws IOException {
+        writeJson(exchange, 200, "{\"status\":\"ok\"}");
     }
 
     private void handleApp(HttpExchange exchange) throws IOException {

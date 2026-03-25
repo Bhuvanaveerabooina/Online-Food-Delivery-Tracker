@@ -108,3 +108,30 @@ Stored in your home directory:
 
 - `~/.online-food-delivery-tracker/orders-data.ser`
 - `~/.online-food-delivery-tracker/users-data.ser`
+
+## Deployment
+
+This project can be deployed to Railway as a Docker-based Java web app.
+
+Files used for deployment:
+
+- `Dockerfile`
+- `.dockerignore`
+- `.gitignore`
+- `railway.json`
+- `DEPLOYMENT.md`
+
+### Railway Deployment
+
+1. Push this project to GitHub.
+2. Sign in to Railway.
+3. Create a new project from the repository.
+4. Railway will detect the `Dockerfile` and build the app.
+5. Open the deployed URL after the build finishes.
+
+Important note:
+
+- The app uses local `.ser` files for storage.
+- On hosts without persistent disk support, users and orders may reset after restart or redeploy.
+- For a demo deployment, this is acceptable.
+- For long-term deployment, move storage to MySQL or PostgreSQL.
