@@ -472,27 +472,56 @@ public class OnlineFoodDeliveryTracker {
                 <head>
                     <title>Login - Food Delivery Tracker</title>
                     <style>
-                        body { font-family: Arial, sans-serif; margin: 40px; background: #f4f7ff; }
-                        .card { max-width: 460px; background: white; padding: 24px; margin: auto; border-radius: 8px; }
-                        input, button, select { width: 100%; padding: 10px; margin-top: 8px; }
-                        .message { color: #204685; margin-top: 10px; }
+                        body { font-family: Arial, sans-serif; margin: 0; background: #f4f7fb; color: #1f2937; }
+                        .layout { max-width: 980px; margin: 40px auto; display: grid; grid-template-columns: 1.1fr .9fr; gap: 24px; padding: 0 20px; }
+                        .card { background: #fff; padding: 24px; border-radius: 12px; box-shadow: 0 10px 25px rgba(15,23,42,.08); }
+                        label { display: block; margin-top: 12px; font-weight: bold; }
+                        input, select, button { width: 100%; padding: 10px; margin-top: 6px; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; }
+                        button { background: #4361d8; color: #fff; border: none; cursor: pointer; font-weight: bold; }
+                        .secondary { background: #497d78; }
+                        .hidden { display: none; }
+                        .message { min-height: 24px; margin-top: 12px; color: #1d4ed8; }
+                        .sample, .help { background: #f8fafc; border-radius: 10px; padding: 12px; margin-top: 12px; }
+                        h1 { font-size: 42px; line-height: 1.05; margin-bottom: 28px; color: #182b4d; }
+                        h2 { font-size: 26px; margin-bottom: 20px; color: #182b4d; }
+                        p { font-size: 18px; }
+                        @media (max-width: 800px) { .layout { grid-template-columns: 1fr; } }
                     </style>
                 </head>
                 <body>
-                    <div class="card">
-                        <h2>Food Delivery Tracker Login</h2>
-                        <input id="username" placeholder="Username" />
-                        <input id="password" type="password" placeholder="Password" />
-                        <select id="role" onchange="toggleRestaurantForOwner()">
-                            <option value="CUSTOMER">Customer</option>
-                            <option value="RESTAURANT_OWNER">Restaurant Owner</option>
-                            <option value="DELIVERY_PERSON">Delivery Person</option>
-                        </select>
-                        <select id="ownerRestaurant" style="display:none"></select>
-                        <button onclick="login()">Login</button>
-                        <button onclick="register()">Register</button>
-                        <div id="msg" class="message"></div>
-                        <p>Sample users: customer/customer123, owner/owner123, delivery/delivery123</p>
+                    <div class="layout">
+                        <div class="card">
+                            <h1>Role-Based Food Delivery Tracker</h1>
+                            <p>Select a role, then login or register.</p>
+                            <label for="role">Role</label>
+                            <select id="role" onchange="toggleRestaurantForOwner()">
+                                <option value="CUSTOMER">Customer</option>
+                                <option value="RESTAURANT_OWNER">Restaurant Owner</option>
+                                <option value="DELIVERY_PERSON">Delivery Person</option>
+                            </select>
+                            <label for="username">Username</label>
+                            <input id="username" placeholder="Enter username" />
+                            <label for="password">Password</label>
+                            <input id="password" type="password" placeholder="Enter password" />
+                            <div id="restaurantWrap" class="hidden">
+                                <label for="ownerRestaurant">Restaurant</label>
+                                <select id="ownerRestaurant"></select>
+                            </div>
+                            <button type="button" onclick="login()">Login</button>
+                            <button type="button" class="secondary" onclick="register()">Register</button>
+                            <div id="msg" class="message"></div>
+                        </div>
+                        <div class="card">
+                            <h2>Sample Users</h2>
+                            <div class="sample"><strong>Customer:</strong> customer / customer123</div>
+                            <div class="sample"><strong>Owner:</strong> owner / owner123</div>
+                            <div class="sample"><strong>Delivery:</strong> delivery / delivery123</div>
+                            <div class="help">
+                                <p><strong>Customer:</strong> place orders, track status, and view own history.</p>
+                                <p><strong>Owner:</strong> see restaurant orders and filter by customer or status.</p>
+                                <p><strong>Delivery:</strong> view delivery orders and mark delivered.</p>
+                            </div>
+                        </div>
                     </div>
                     <script>
                         let restaurants = [];
@@ -505,7 +534,7 @@ public class OnlineFoodDeliveryTracker {
                         }
                         function toggleRestaurantForOwner() {
                             const isOwner = document.getElementById('role').value === 'RESTAURANT_OWNER';
-                            document.getElementById('ownerRestaurant').style.display = isOwner ? 'block' : 'none';
+                            document.getElementById('restaurantWrap').className = isOwner ? '' : 'hidden';
                         }
                         async function post(url) {
                             const role = document.getElementById('role').value;
@@ -534,6 +563,7 @@ public class OnlineFoodDeliveryTracker {
                             document.getElementById('msg').innerText = result.body.message;
                         }
                         loadRestaurants();
+                        toggleRestaurantForOwner();
                     </script>
                 </body>
                 </html>
