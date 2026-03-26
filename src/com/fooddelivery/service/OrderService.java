@@ -32,6 +32,7 @@ public class OrderService implements OrderOperations {
         }
 
         seedOrdersIfNeeded();
+        resumePendingOrderProgression();
     }
 
     @Override
@@ -105,13 +106,11 @@ public class OrderService implements OrderOperations {
     }
 
     @Override
-    public synchronized boolean updateOrderStatusForRestaurant(int restaurantId, String orderId, OrderStatus status) {
-        if (status == OrderStatus.DELIVERED) {
-            return false;
-        }
+    public synchronized boolean acceptOrderForRestaurant(int restaurantId, String orderId) {
         Optional<Order> orderOpt = orders.stream()
                 .filter(order -> order.getRestaurantId() == restaurantId)
                 .filter(order -> order.getOrderId().equalsIgnoreCase(orderId))
+                .filter(order -> order.getStatus() == OrderStatus.PLACED)
                 .findFirst();
 
         if (orderOpt.isEmpty()) {
@@ -119,11 +118,9 @@ public class OrderService implements OrderOperations {
         }
 
         Order order = orderOpt.get();
-        order.setStatus(status);
-        if (status == OrderStatus.OUT_FOR_DELIVERY && order.getAssignedDeliveryPersonId() == null) {
-            order.setAssignedDeliveryPersonId("delivery");
-        }
+        order.setStatus(OrderStatus.PREPARING);
         persistOrders();
+        startOrderProgression(order);
         return true;
     }
 
@@ -208,5 +205,42 @@ public class OrderService implements OrderOperations {
 
     private synchronized void persistOrders() {
         orderFileStore.saveOrders(orders);
+    }
+
+    private void resumePendingOrderProgression() {
+        for (Order order : orders) {
+            if (order.getStatus() == OrderStatus.PREPARING) {
+                startOrderProgression(order);
+            }
+        }
+    }
+
+    private void startOrderProgression(Order order) {
+        Thread orderProgressThread = new Thread(() -> {
+            try {
+                if (order.getStatus() == OrderStatus.PREPARING) {
+                    updateStatusAfterDelay(order, OrderStatus.OUT_FOR_DELIVERY, 2000);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+
+        orderProgressThread.setDaemon(true);
+        orderProgressThread.start();
+    }
+
+    private void updateStatusAfterDelay(Order order, OrderStatus status, long delayMs) throws InterruptedException {
+        Thread.sleep(delayMs);
+        synchronized (this) {
+            if (order.getStatus() == OrderStatus.DELIVERED) {
+                return;
+            }
+            order.setStatus(status);
+            if (status == OrderStatus.OUT_FOR_DELIVERY && order.getAssignedDeliveryPersonId() == null) {
+                order.setAssignedDeliveryPersonId("delivery");
+            }
+            persistOrders();
+        }
     }
 }

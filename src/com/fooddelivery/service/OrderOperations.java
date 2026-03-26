@@ -20,7 +20,7 @@ public interface OrderOperations {
 
     List<Order> getOrdersForRestaurant(int restaurantId, String customerNameFilter, OrderStatus statusFilter);
 
-    boolean updateOrderStatusForRestaurant(int restaurantId, String orderId, OrderStatus status);
+    boolean acceptOrderForRestaurant(int restaurantId, String orderId);
 
     List<Order> getOrdersForDeliveryPerson(String username);
 

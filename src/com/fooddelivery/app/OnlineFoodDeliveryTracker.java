@@ -61,7 +61,7 @@ public class OnlineFoodDeliveryTracker {
         server.createContext("/api/customer/status", this::handleCustomerStatus);
 
         server.createContext("/api/owner/orders", this::handleOwnerOrders);
-        server.createContext("/api/owner/update-status", new JsonPostHandler(this::handleOwnerUpdateStatus));
+        server.createContext("/api/owner/accept-order", new JsonPostHandler(this::handleOwnerAcceptOrder));
 
         server.createContext("/api/delivery/orders", this::handleDeliveryOrders);
         server.createContext("/api/delivery/mark-delivered", new JsonPostHandler(this::handleMarkDelivered));
@@ -86,7 +86,15 @@ public class OnlineFoodDeliveryTracker {
             redirect(exchange, "/login");
             return;
         }
-        serveHtml(exchange, appPage(user.getUsername(), user.getRole().name()));
+        if (user.getRole() == UserRole.CUSTOMER) {
+            serveHtml(exchange, customerDashboardPage(user));
+            return;
+        }
+        if (user.getRole() == UserRole.RESTAURANT_OWNER) {
+            serveHtml(exchange, ownerDashboardPage(user));
+            return;
+        }
+        serveHtml(exchange, deliveryDashboardPage(user));
     }
 
     private void handleRegister(HttpExchange exchange, Map<String, String> payload) throws IOException {
@@ -239,29 +247,23 @@ public class OnlineFoodDeliveryTracker {
         writeJson(exchange, 200, ordersJson(orderService.getOrdersForRestaurant(user.getRestaurantId(), customer, status)));
     }
 
-    private void handleOwnerUpdateStatus(HttpExchange exchange, Map<String, String> payload) throws IOException {
+    private void handleOwnerAcceptOrder(HttpExchange exchange, Map<String, String> payload) throws IOException {
         UserAccount user = requireRole(exchange, UserRole.RESTAURANT_OWNER);
         if (user == null) return;
 
         String orderId = payload.getOrDefault("orderId", "").trim();
-        String statusText = payload.getOrDefault("status", "").trim().toUpperCase();
-
-        if (orderId.isEmpty() || statusText.isEmpty()) {
-            writeJson(exchange, 400, jsonMessage("orderId and status are required."));
+        if (orderId.isEmpty()) {
+            writeJson(exchange, 400, jsonMessage("orderId is required."));
             return;
         }
 
-        try {
-            OrderStatus status = OrderStatus.valueOf(statusText);
-            boolean updated = orderService.updateOrderStatusForRestaurant(user.getRestaurantId(), orderId, status);
-            if (!updated) {
-                writeJson(exchange, 400, jsonMessage("Order not found or invalid status update."));
-                return;
-            }
-            writeJson(exchange, 200, jsonMessage("Order status updated."));
-        } catch (IllegalArgumentException exception) {
-            writeJson(exchange, 400, jsonMessage("Invalid status."));
+        boolean updated = orderService.acceptOrderForRestaurant(user.getRestaurantId(), orderId);
+        if (!updated) {
+            writeJson(exchange, 400, jsonMessage("Only placed orders can be accepted."));
+            return;
         }
+
+        writeJson(exchange, 200, jsonMessage("Order accepted and moved to preparing."));
     }
 
     private void handleDeliveryOrders(HttpExchange exchange) throws IOException {
@@ -570,93 +572,81 @@ public class OnlineFoodDeliveryTracker {
                 """;
     }
 
-    private String appPage(String username, String role) {
+    private String customerDashboardPage(UserAccount user) {
         return """
                 <!doctype html>
                 <html>
                 <head>
-                    <title>Food Delivery Tracker</title>
+                    <title>Customer Dashboard</title>
                     <style>
-                        body { font-family: Arial, sans-serif; margin: 30px; background:#f7f9ff; }
-                        .top { display:flex; justify-content:space-between; align-items:center; }
-                        .panel { background:white; padding:16px; border-radius:8px; margin-top:14px; }
-                        input, button, select { padding:8px; margin:4px; }
-                        table { width:100%; border-collapse: collapse; margin-top:8px; }
-                        th, td { border:1px solid #ddd; padding:8px; text-align:left; }
+                        body { font-family: Arial, sans-serif; margin: 0; background: #f4f7fb; color: #1f2937; }
+                        .page { max-width: 1150px; margin: 24px auto; padding: 0 20px 30px; }
+                        .topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 20px; }
+                        .badge { background: #dbeafe; color: #1d4ed8; padding: 6px 12px; border-radius: 999px; font-size: 14px; display: inline-block; }
+                        .grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 18px; }
+                        .panel { background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 10px 25px rgba(15,23,42,.08); }
+                        .full { margin-top: 18px; }
+                        label { display: block; margin-top: 10px; font-weight: bold; }
+                        input, select, textarea, button { width: 100%; padding: 10px; margin-top: 6px; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; }
+                        textarea { min-height: 90px; resize: vertical; }
+                        button { background: #4361d8; color: #fff; border: none; cursor: pointer; font-weight: bold; }
+                        .price-box { background: #f8fafc; padding: 10px; border-radius: 8px; margin-top: 6px; border: 1px solid #e2e8f0; }
+                        .message { min-height: 24px; margin-top: 10px; color: #1d4ed8; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                        th, td { border: 1px solid #e2e8f0; padding: 10px; text-align: left; }
+                        th { background: #eff6ff; }
+                        @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } .topbar { flex-direction: column; align-items: flex-start; } }
                     </style>
                 </head>
                 <body>
-                    <div class="top">
-                        <h2>Welcome, __USERNAME__ (__ROLE__)</h2>
-                        <form method="post" action="/api/logout"><button>Logout</button></form>
-                    </div>
+                    <div class="page">
+                        <div class="topbar">
+                            <div>
+                                <h1>Customer Dashboard</h1>
+                                <div class="badge">Signed in as __USERNAME__</div>
+                            </div>
+                            <form method="post" action="/api/logout"><button type="submit">Logout</button></form>
+                        </div>
 
-                    <div id="customerDashboard" style="display:none">
-                        <div class="panel">
-                            <h3>Place Order</h3>
-                            <input id="customerName" placeholder="Customer name" />
-                            <select id="restaurantSelect" onchange="loadMenuItems()"></select>
-                            <input id="deliveryAddress" placeholder="Delivery address" />
-                            <select id="itemSelect" onchange="updatePrice()"></select>
-                            <input id="price" readonly placeholder="Price" />
-                            <input id="quantity" type="number" min="1" value="1" placeholder="Quantity" />
-                            <button onclick="placeOrder()">Place Order</button>
-                            <div id="placeMsg"></div>
+                        <div class="grid">
+                            <div class="panel">
+                                <h2>Place Order</h2>
+                                <label>Customer Name</label>
+                                <input id="customerName" value="__USERNAME__">
+                                <label>Restaurant Name</label>
+                                <select id="restaurantSelect" onchange="loadMenuItems()"></select>
+                                <label>Delivery Address</label>
+                                <textarea id="deliveryAddress" placeholder="Enter delivery address"></textarea>
+                                <label>Item Name</label>
+                                <select id="itemSelect" onchange="updatePrice()"></select>
+                                <label>Selected Item Price</label>
+                                <div id="priceDisplay" class="price-box">Rs. 0.00</div>
+                                <label>Quantity</label>
+                                <input id="quantity" type="number" min="1" value="1">
+                                <button type="button" onclick="placeOrder()">Place Order</button>
+                                <div id="placeMsg" class="message"></div>
+                            </div>
+
+                            <div class="panel">
+                                <h2>Order Status</h2>
+                                <label>Order ID</label>
+                                <input id="trackId" placeholder="Enter order ID">
+                                <button type="button" onclick="checkStatus()">Check Status</button>
+                                <div id="statusMsg" class="message"></div>
+                            </div>
                         </div>
-                        <div class="panel">
-                            <h3>Check Current Order Status</h3>
-                            <input id="trackId" placeholder="Order ID" />
-                            <button onclick="checkStatus()">Check Status</button>
-                            <div id="statusMsg"></div>
-                        </div>
-                        <div class="panel">
-                            <h3>My Order History</h3>
+
+                        <div class="panel full">
+                            <h2>My Order History</h2>
                             <table>
-                                <thead><tr><th>ID</th><th>Restaurant</th><th>Item</th><th>Qty</th><th>Total</th><th>Address</th><th>Status</th><th>Time</th></tr></thead>
-                                <tbody id="customerOrdersBody"></tbody>
+                                <thead><tr><th>Order ID</th><th>Restaurant</th><th>Item</th><th>Qty</th><th>Total</th><th>Address</th><th>Status</th><th>Order Time</th></tr></thead>
+                                <tbody id="ordersBody"></tbody>
                             </table>
                         </div>
                     </div>
-
-                    <div id="ownerDashboard" style="display:none">
-                        <div class="panel">
-                            <h3>Restaurant Orders</h3>
-                            <input id="ownerCustomerFilter" placeholder="Filter by customer" />
-                            <select id="ownerStatusFilter">
-                                <option value="">All Statuses</option>
-                                <option value="PLACED">PLACED</option>
-                                <option value="PREPARING">PREPARING</option>
-                                <option value="OUT_FOR_DELIVERY">OUT_FOR_DELIVERY</option>
-                                <option value="DELIVERED">DELIVERED</option>
-                            </select>
-                            <button onclick="loadOwnerOrders()">Apply Filters</button>
-                            <table>
-                                <thead><tr><th>ID</th><th>Customer</th><th>Item</th><th>Qty</th><th>Address</th><th>Time</th><th>Status</th><th>Update</th></tr></thead>
-                                <tbody id="ownerOrdersBody"></tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <div id="deliveryDashboard" style="display:none">
-                        <div class="panel">
-                            <h3>Orders To Deliver</h3>
-                            <table>
-                                <thead><tr><th>ID</th><th>Customer</th><th>Address</th><th>Restaurant</th><th>Item</th><th>Status</th><th>Action</th></tr></thead>
-                                <tbody id="deliveryOrdersBody"></tbody>
-                            </table>
-                        </div>
-                    </div>
-
                     <script>
-                        const role = '__ROLE__';
                         let menuItems = [];
-                        function showDashboard() {
-                            if (role === 'CUSTOMER') document.getElementById('customerDashboard').style.display = 'block';
-                            if (role === 'RESTAURANT_OWNER') document.getElementById('ownerDashboard').style.display = 'block';
-                            if (role === 'DELIVERY_PERSON') document.getElementById('deliveryDashboard').style.display = 'block';
-                        }
-
-                        async function initCustomer() {
+                        async function init() {
                             const res = await fetch('/api/restaurants');
                             const data = await res.json();
                             const restaurantSelect = document.getElementById('restaurantSelect');
@@ -681,16 +671,16 @@ public class OnlineFoodDeliveryTracker {
                         function updatePrice() {
                             const itemId = Number(document.getElementById('itemSelect').value);
                             const item = menuItems.find(i => i.id === itemId);
-                            document.getElementById('price').value = item ? item.price : '';
+                            document.getElementById('priceDisplay').innerText = item ? ('Rs. ' + Number(item.price).toFixed(2)) : 'Rs. 0.00';
                         }
 
                         async function placeOrder() {
                             const payload = {
-                                customerName: document.getElementById('customerName').value,
+                                customerName: document.getElementById('customerName').value.trim(),
                                 restaurantId: document.getElementById('restaurantSelect').value,
                                 itemId: document.getElementById('itemSelect').value,
                                 quantity: document.getElementById('quantity').value,
-                                deliveryAddress: document.getElementById('deliveryAddress').value
+                                deliveryAddress: document.getElementById('deliveryAddress').value.trim()
                             };
                             const res = await fetch('/api/customer/place-order', {
                                 method:'POST',
@@ -698,12 +688,15 @@ public class OnlineFoodDeliveryTracker {
                                 body: JSON.stringify(payload)
                             });
                             const data = await res.json();
-                            document.getElementById('placeMsg').innerText = data.message + (data.orderId ? (' ID: ' + data.orderId) : '');
+                            document.getElementById('placeMsg').innerText = data.message + (data.orderId ? (' Order ID: ' + data.orderId) : '');
+                            if (res.status === 200 && data.orderId) {
+                                document.getElementById('trackId').value = data.orderId;
+                            }
                             loadCustomerOrders();
                         }
 
                         async function checkStatus() {
-                            const id = document.getElementById('trackId').value;
+                            const id = document.getElementById('trackId').value.trim();
                             const res = await fetch('/api/customer/status?id=' + encodeURIComponent(id));
                             const data = await res.json();
                             document.getElementById('statusMsg').innerText = data.status ? (data.orderId + ': ' + data.status) : data.message;
@@ -712,36 +705,158 @@ public class OnlineFoodDeliveryTracker {
                         async function loadCustomerOrders() {
                             const res = await fetch('/api/customer/orders');
                             const data = await res.json();
-                            const body = document.getElementById('customerOrdersBody');
+                            const body = document.getElementById('ordersBody');
                             body.innerHTML = '';
                             (data.orders || []).forEach(order => {
-                                body.innerHTML += `<tr><td>${order.orderId}</td><td>${order.restaurantName}</td><td>${order.itemName}</td><td>${order.quantity}</td><td>${order.totalPrice}</td><td>${order.deliveryAddress}</td><td>${order.status}</td><td>${order.orderTime}</td></tr>`;
+                                body.innerHTML += `<tr><td>${order.orderId}</td><td>${order.restaurantName}</td><td>${order.itemName}</td><td>${order.quantity}</td><td>Rs. ${Number(order.totalPrice).toFixed(2)}</td><td>${order.deliveryAddress}</td><td>${order.status}</td><td>${order.orderTime}</td></tr>`;
                             });
                         }
+                        init();
+                    </script>
+                </body>
+                </html>
+                """.replace("__USERNAME__", escapeHtml(user.getUsername()));
+    }
 
+    private String ownerDashboardPage(UserAccount user) {
+        return """
+                <!doctype html>
+                <html>
+                <head>
+                    <title>Owner Dashboard</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; margin: 0; background: #f4f7fb; color: #1f2937; }
+                        .page { max-width: 1180px; margin: 24px auto; padding: 0 20px 30px; }
+                        .topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 20px; }
+                        .panel { background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 10px 25px rgba(15,23,42,.08); }
+                        .filters { display: grid; grid-template-columns: 1fr 220px 160px; gap: 12px; align-items: end; }
+                        .badge { background: #dcfce7; color: #166534; padding: 6px 12px; border-radius: 999px; font-size: 14px; display: inline-block; }
+                        input, select, button { width: 100%; padding: 10px; margin-top: 6px; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; }
+                        button { background: #4361d8; color: #fff; border: none; cursor: pointer; font-weight: bold; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+                        th, td { border: 1px solid #e2e8f0; padding: 10px; text-align: left; }
+                        th { background: #eff6ff; }
+                        @media (max-width: 900px) { .filters { grid-template-columns: 1fr; } .topbar { flex-direction: column; align-items: flex-start; } }
+                    </style>
+                </head>
+                <body>
+                    <div class="page">
+                        <div class="topbar">
+                            <div>
+                                <h1>Restaurant Owner Dashboard</h1>
+                                <div class="badge">Signed in as __USERNAME__</div>
+                            </div>
+                            <form method="post" action="/api/logout"><button type="submit">Logout</button></form>
+                        </div>
+                        <div class="panel">
+                            <h2>Restaurant Orders</h2>
+                            <div class="filters">
+                                <div>
+                                    <label>Filter by Customer Name</label>
+                                    <input id="ownerCustomerFilter" placeholder="Search customer name">
+                                </div>
+                                <div>
+                                    <label>Filter by Status</label>
+                                    <select id="ownerStatusFilter">
+                                        <option value="">All Statuses</option>
+                                        <option value="PLACED">PLACED</option>
+                                        <option value="PREPARING">PREPARING</option>
+                                        <option value="OUT_FOR_DELIVERY">OUT_FOR_DELIVERY</option>
+                                        <option value="DELIVERED">DELIVERED</option>
+                                    </select>
+                                </div>
+                                <div><button type="button" onclick="loadOwnerOrders()">Apply Filters</button></div>
+                            </div>
+                            <table>
+                                <thead><tr><th>Order ID</th><th>Customer</th><th>Restaurant</th><th>Item</th><th>Qty</th><th>Address</th><th>Status</th><th>Order Time</th><th>Action</th></tr></thead>
+                                <tbody id="ownerOrdersBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <script>
                         async function loadOwnerOrders() {
-                            const customer = encodeURIComponent(document.getElementById('ownerCustomerFilter').value || '');
-                            const status = encodeURIComponent(document.getElementById('ownerStatusFilter').value || '');
+                            const customer = encodeURIComponent(document.getElementById('ownerCustomerFilter').value.trim());
+                            const status = encodeURIComponent(document.getElementById('ownerStatusFilter').value);
                             const res = await fetch('/api/owner/orders?customer=' + customer + '&status=' + status);
                             const data = await res.json();
                             const body = document.getElementById('ownerOrdersBody');
                             body.innerHTML = '';
                             (data.orders || []).forEach(order => {
-                                const options = ['PLACED', 'PREPARING', 'OUT_FOR_DELIVERY']
-                                    .map(status => `<option value="${status}" ${status === order.status ? 'selected' : ''}>${status}</option>`)
-                                    .join('');
-                                body.innerHTML += `<tr><td>${order.orderId}</td><td>${order.customerName}</td><td>${order.itemName}</td><td>${order.quantity}</td><td>${order.deliveryAddress}</td><td>${order.orderTime}</td><td>${order.status}</td><td><select id="status-${order.orderId}">${options}</select><button onclick="updateOwnerStatus('${order.orderId}')">Save</button></td></tr>`;
+                                const action = order.status === 'PLACED'
+                                    ? `<button type="button" onclick="acceptOrder('${order.orderId}')">Accept Order</button>`
+                                    : `<span>${order.status}</span>`;
+                                body.innerHTML += `<tr><td>${order.orderId}</td><td>${order.customerName}</td><td>${order.restaurantName}</td><td>${order.itemName}</td><td>${order.quantity}</td><td>${order.deliveryAddress}</td><td>${order.status}</td><td>${order.orderTime}</td><td>${action}</td></tr>`;
                             });
                         }
 
-                        async function updateOwnerStatus(orderId) {
-                            const status = document.getElementById('status-' + orderId).value;
-                            await fetch('/api/owner/update-status', {
-                                method:'POST',
-                                headers:{'Content-Type':'application/json'},
-                                body: JSON.stringify({ orderId, status })
+                        async function acceptOrder(orderId) {
+                            await fetch('/api/owner/accept-order', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ orderId })
                             });
                             loadOwnerOrders();
+                        }
+
+                        document.getElementById('ownerCustomerFilter').addEventListener('input', loadOwnerOrders);
+                        document.getElementById('ownerStatusFilter').addEventListener('change', loadOwnerOrders);
+                        loadOwnerOrders();
+                        setInterval(loadOwnerOrders, 4000);
+                    </script>
+                </body>
+                </html>
+                """.replace("__USERNAME__", escapeHtml(user.getUsername()));
+    }
+
+    private String deliveryDashboardPage(UserAccount user) {
+        return """
+                <!doctype html>
+                <html>
+                <head>
+                    <title>Delivery Dashboard</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; margin: 0; background: #f4f7fb; color: #1f2937; }
+                        .page { max-width: 1180px; margin: 24px auto; padding: 0 20px 30px; }
+                        .topbar { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 20px; }
+                        .panel { background: #fff; padding: 26px; border-radius: 12px; box-shadow: 0 10px 25px rgba(15,23,42,.08); }
+                        .badge { background: #fee2e2; color: #c2410c; padding: 6px 14px; border-radius: 999px; font-size: 14px; display: inline-block; }
+                        button { padding: 10px 14px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; background: #4361d8; color: #fff; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 14px; }
+                        th, td { border: 1px solid #e2e8f0; padding: 10px 12px; text-align: left; vertical-align: middle; }
+                        th { background: #eff6ff; }
+                        #message { min-height: 24px; color: #1d4ed8; margin-top: 10px; }
+                        @media (max-width: 900px) { .topbar { flex-direction: column; align-items: flex-start; } }
+                    </style>
+                </head>
+                <body>
+                    <div class="page">
+                        <div class="topbar">
+                            <div>
+                                <h1>Delivery Person Dashboard</h1>
+                                <div class="badge">Signed in as __USERNAME__</div>
+                                <p>View delivery orders and mark them delivered.</p>
+                            </div>
+                            <form method="post" action="/api/logout"><button type="submit">Logout</button></form>
+                        </div>
+                        <div class="panel">
+                            <h2>Delivery Orders</h2>
+                            <div id="message"></div>
+                            <table>
+                                <thead><tr><th>Order ID</th><th>Customer</th><th>Restaurant</th><th>Item</th><th>Qty</th><th>Address</th><th>Status</th><th>Order Time</th><th>Action</th></tr></thead>
+                                <tbody id="deliveryOrdersBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <script>
+                        async function markDelivered(orderId) {
+                            const res = await fetch('/api/delivery/mark-delivered', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ orderId })
+                            });
+                            const data = await res.json();
+                            document.getElementById('message').innerText = data.message || '';
+                            loadDeliveryOrders();
                         }
 
                         async function loadDeliveryOrders() {
@@ -750,26 +865,26 @@ public class OnlineFoodDeliveryTracker {
                             const body = document.getElementById('deliveryOrdersBody');
                             body.innerHTML = '';
                             (data.orders || []).forEach(order => {
-                                body.innerHTML += `<tr><td>${order.orderId}</td><td>${order.customerName}</td><td>${order.deliveryAddress}</td><td>${order.restaurantName}</td><td>${order.itemName}</td><td>${order.status}</td><td><button onclick="markDelivered('${order.orderId}')">Mark Delivered</button></td></tr>`;
+                                const action = order.status === 'OUT_FOR_DELIVERY'
+                                    ? `<button type="button" onclick="markDelivered('${order.orderId}')">Mark Delivered</button>`
+                                    : `<span>${order.status}</span>`;
+                                body.innerHTML += `<tr><td>${order.orderId}</td><td>${order.customerName}</td><td>${order.restaurantName}</td><td>${order.itemName}</td><td>${order.quantity}</td><td>${order.deliveryAddress}</td><td>${order.status}</td><td>${order.orderTime}</td><td>${action}</td></tr>`;
                             });
                         }
 
-                        async function markDelivered(orderId) {
-                            await fetch('/api/delivery/mark-delivered', {
-                                method:'POST',
-                                headers:{'Content-Type':'application/json'},
-                                body: JSON.stringify({ orderId })
-                            });
-                            loadDeliveryOrders();
-                        }
-
-                        showDashboard();
-                        if (role === 'CUSTOMER') initCustomer();
-                        if (role === 'RESTAURANT_OWNER') { loadOwnerOrders(); setInterval(loadOwnerOrders, 3000); }
-                        if (role === 'DELIVERY_PERSON') { loadDeliveryOrders(); setInterval(loadDeliveryOrders, 3000); }
+                        loadDeliveryOrders();
+                        setInterval(loadDeliveryOrders, 4000);
                     </script>
                 </body>
                 </html>
-                """.replace("__USERNAME__", escape(username)).replace("__ROLE__", role);
+                """.replace("__USERNAME__", escapeHtml(user.getUsername()));
+    }
+
+    private String escapeHtml(String value) {
+        return value == null ? "" : value
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;");
     }
 }
